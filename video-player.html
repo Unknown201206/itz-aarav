@@ -915,7 +915,7 @@
 
 <!-- Greeting -->
 <div class="flex flex-col items-center mb-5">
-  <img src="/feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
+  <img src="feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
   <h2 class="bg-gradient-to-r from-pink-800 to-blue-900 bg-clip-text text-transparent text-xl sm:text-2xl md:text-3xl font-bold mt-[-1]">... !!   राधे राधे   !! ...</h2>
 </div>
 
@@ -1075,7 +1075,37 @@
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
 
-  
+<!--   DEBUG  BOX   -->
+<div class="text-center">
+  <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
+</div>
+
+<div class="w-full max-w-4xl mx-auto px-4 mt-5 mb-10 text-left">
+  <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:8px 12px; border-radius: 8px 8px 0 0;">
+    <span style="color:white; font-weight:bold; font-size:14px;">System Debug Logs</span>
+    <button onclick="navigator.clipboard.writeText(document.getElementById('mobile-console').innerText).then(()=>alert('Logs Copied!'))" style="background:#14b9ff; color:white; border:none; padding:4px 10px; border-radius:4px; font-size:12px; font-weight:bold;">Copy Logs</button>
+  </div>
+  <div id="mobile-console" style="background:#000; padding:10px; font-family:monospace; font-size:11px; height:250px; overflow-y:auto; border:1px solid #333; border-radius: 0 0 8px 8px; word-wrap:break-word;">
+    <div style="color:#aaa;">--- WAITING FOR LOGS ---</div>
+  </div>
+</div>
+<script>
+  // Intercept all console logs and print them to the screen
+  const logBox = document.getElementById('mobile-console');
+  function printLog(msg, color) {
+    if(logBox) {
+      logBox.innerHTML += `<div style="color:${color}; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;">${msg}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+  }
+  const origLog = console.log, origErr = console.error, origWarn = console.warn;
+  console.log = function(...args) { origLog(...args); printLog(args.join(' '), '#aaa'); };
+  console.warn = function(...args) { origWarn(...args); printLog('WARN: ' + args.join(' '), '#ffaa00'); };
+  console.error = function(...args) { origErr(...args); printLog('ERROR: ' + args.join(' '), '#ff5555'); };
+  window.onerror = function(msg, url, line) { printLog(`FATAL: ${msg} (Line: ${line})`, '#ff5555'); };
+</script>
+
+
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 
@@ -1181,21 +1211,57 @@ window.addEventListener('resize', syncGestureZoneBottomToControls);
 setTimeout(syncGestureZoneBottomToControls, 120);
 setTimeout(syncGestureZoneBottomToControls, 450);
 
-// === HLS.JS INITIALIZATION ===
-// Before initializing Plyr, we must attach the live stream to the video tag
+
+// === HLS.JS INITIALIZATION ( WITH DEBUG & ERROR HANDLING ) ===
 const videoElement = document.getElementById('player');
 if (provider === "hls" && videoElement) {
   const sourceUrl = decodeURIComponent(video);
+  console.log("Attempting to load HLS URL:", sourceUrl);
+
   if (Hls.isSupported()) {
-    const hls = new Hls();
+    // Enable debug mode to feed logs into our mobile console
+    const hls = new Hls({ debug: false }); // Set to true if you want extreme detail
+    
     hls.loadSource(sourceUrl);
     hls.attachMedia(videoElement);
-    window.hls = hls; // Expose to window for debugging
+    
+    // Listen for errors
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      console.error("HLS Event Error:", data.type, "-", data.details);
+      
+      if (data.fatal) {
+        // Kill the infinite loading spinner
+        hideCustomLoader(); 
+        
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.error("FATAL NETWORK ERROR: The server is blocking you (CORS) or the link is dead. It refuses to send the data to GitHub Pages.");
+            hls.destroy();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.error("FATAL MEDIA ERROR: The video format is unreadable.");
+            hls.recoverMediaError();
+            break;
+          default:
+            hls.destroy();
+            break;
+        }
+      }
+    });
+
+    // Listen for success to hide loader just in case
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+      console.log("Manifest loaded successfully! Stream is ready.");
+      hideCustomLoader();
+    });
+
+    window.hls = hls; 
   } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-    // Fallback for Safari/iOS which supports HLS natively
+    console.log("Using native Safari/iOS HLS fallback.");
     videoElement.src = sourceUrl;
   }
 }
+
 
 // Plyr instance with your custom config untouched
 window.player = new Plyr('#player', {
