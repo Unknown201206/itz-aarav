@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/stream-proxy/:path*",
+      "destination": "https://live-server-h-3fd3ea6270f5.herokuapp.com/:path*"
+    }
+  ]
+}
