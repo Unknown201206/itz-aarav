@@ -1252,12 +1252,28 @@ function initAllPlayerEvents(plyrInstance) {
   player.on('loadstart', showCustomLoader);
   player.on('waiting', showCustomLoader);
   player.on('seeking', showCustomLoader);
+  
+  //   👇🏻  THE FIX  :  Hide The Loader When The UI is Built So You Can Click Play
+  player.on('ready', hideCustomLoader);
   player.on('canplay', hideCustomLoader);
   player.on('playing', hideCustomLoader);
   player.on('seeked', hideCustomLoader);
   player.on('error', hideCustomLoader);
-  showCustomLoader();
   player.on('loadeddata', hideCustomLoader);
+
+  //   Fallback  :  YouTube API Sometimes Fails To Clear Loaders Automatically
+  player.on('statechange', (event) => {
+    if (event.detail.code === 1 || event.detail.code === 2) {
+      hideCustomLoader();
+    }
+  });
+
+  //   Only Force The Loader Initially For HLS Streams That  Auto - Buffer
+  if (provider === 'hls') {
+    showCustomLoader();
+  } else {
+    hideCustomLoader();
+  }
 
   //   Invert Time Toggle
   (function() {
