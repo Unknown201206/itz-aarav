@@ -1318,7 +1318,12 @@ if (provider === "hls" && videoElement) {
   if (Hls.isSupported()) {
     const hls = new Hls({ 
       debug: false,
-      xhrSetup: function (xhr, url) { xhr.setRequestHeader('auth-key', 'romeo123'); }
+      xhrSetup: function (xhr, url) { 
+        //   SMART PROXY  :  Only Inject The  PW  auth-key  If The URL Goes To Your Vercel Proxy
+        if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
+          xhr.setRequestHeader('auth-key', 'romeo123'); 
+        }
+      }
     });
     
     hls.loadSource(sourceUrl);
