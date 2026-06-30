@@ -2105,10 +2105,29 @@ watchdogIntervalId = setInterval(() => {
     rightPercentEl.textContent = '100%  Remaining';
   }
 
+
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
     const dur = Number(player.duration || 0);
     const cur = Number(player.currentTime || 0);
+
+    //   👇🏻  DYNAMIC SESSION CARD FIX  :  Force Update Total Duration  ( YouTube Iframes Often Skip Loadedmetadata )
+    //   This Also Ensures The Total Duration Text Grows Dynamically as The Live Stream Continues
+    if (dur > 0) {
+        if (!isMetadataLoaded) {
+            isMetadataLoaded = true;
+            if (!player.paused && !isBufferingOrSeeking) {
+                startSessionTimer();
+                setSessionDotState("playing");
+            }
+        }
+        
+        if (dur !== Infinity) {
+            document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
+        } else {
+            document.getElementById("sessionTotalDuration").textContent = "Live Stream";
+        }
+    }
 
     if (!dur || !isFinite(dur) || dur === 0) {
       //   If It's a Live Stream Without a Known Duration Yet ,  Still Check For Live Drift
@@ -2147,7 +2166,6 @@ watchdogIntervalId = setInterval(() => {
     //   👇🏻  DYNAMIC LIVE STREAM UI LOGIC  👇🏻
     checkLiveDrift(cur, dur);
   }
-
 
   function checkLiveDrift(cur, dur) {
     const liveIndicator = document.getElementById('liveIndicator');
@@ -2194,9 +2212,9 @@ watchdogIntervalId = setInterval(() => {
 
     const secondsBehind = liveEdgeTime - cur;
     
-    //   YouTube's Video Chunks Load Much Slower Than HLS Chunks .
-    //   We Must Increase The YouTube Drift Tolerance To 12 Seconds So The Button Doesn't Flash Randomly .
-    const driftTolerance = player.provider === 'youtube' ? 12 : 6;
+    //   👇🏻  THE FIX  :  YouTube Forces Players To Stay Roughly 60 Seconds Behind The Mathematical Duration .
+    //   We MUST Increase Tolerance To 85 Seconds ,  Otherwise It Will Perpetually Evaluate as  " NOT LIVE " .
+    const driftTolerance = player.provider === 'youtube' ? 85 : 10;
 
     if (secondsBehind <= driftTolerance) { 
         //   User is Synced With The Server
