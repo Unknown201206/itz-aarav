@@ -72,13 +72,19 @@
       let videoID = '';
 
       try {
-        //   1.  YouTube Logic
+        //   1.  YouTube Logic  ( Updated To Handle  " /live/ " ,  " /shorts/ " , &  " ?si= " )
         if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
           provider = 'youtube';
-          const urlObj = new URL(rawUrl.replace('youtu.be/', 'youtube.com/watch?v='));
-          videoID = urlObj.searchParams.get('v');
-          if (!videoID) throw new Error("Invalid YouTube Link");
+          
+          //   Smart Regex  :  Extracts Exactly The  11 - Character  Video ID  From Any YouTube Link Format
+          const ytRegex = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|live\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+          const match = rawUrl.match(ytRegex);
+          
+          videoID = (match && match[2].length === 11) ? match[2] : null;
+          
+          if (!videoID) throw new Error("Invalid YouTube Link. Could not extract the 11-character ID.");
         } 
+
         //   2.  PW / Heroku  Protected Stream Logic
         else if (rawUrl.includes('live-server') || rawUrl.includes('herokuapp.com') || rawUrl.includes('/pw/live')) {
           provider = 'hls';
@@ -90,11 +96,13 @@
           const proxyPath = '/stream-proxy' + pathAndQuery; 
           videoParam = encodeURIComponent(proxyPath);
         }
+
         //   3.  Generic Public M3U8 Logic
         else if (rawUrl.includes('.m3u8')) {
           provider = 'hls';
           videoParam = encodeURIComponent(rawUrl);
         }
+
         //   4.  Fallback HTML5  ( MP4 , Archive.org ,   etc. )
         else {
           provider = 'html5';
