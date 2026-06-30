@@ -1026,6 +1026,12 @@
         </div>
 
         <div class="percent-text" id="rightPercent">100&nbsp;% &nbsp;&nbsp;&nbsp;Remaining</div>
+        
+        <div id="liveIndicator" style="display: none; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 2px 10px; border-radius: 12px; transition: all 0.2s;">
+          <span id="liveIndicatorText">LIVE</span>
+          <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1075,7 +1081,7 @@
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
 
-<!--   DEBUG  BOX   -->
+<!--   DEBUG  BOX
 <div class="text-center">
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
@@ -1103,7 +1109,7 @@
   console.warn = function(...args) { origWarn(...args); printLog('WARN: ' + args.join(' '), '#ffaa00'); };
   console.error = function(...args) { origErr(...args); printLog('ERROR: ' + args.join(' '), '#ff5555'); };
   window.onerror = function(msg, url, line) { printLog(`FATAL: ${msg} (Line: ${line})`, '#ff5555'); };
-</script>
+</script>     -->
 
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
@@ -1212,39 +1218,44 @@ setTimeout(syncGestureZoneBottomToControls, 120);
 setTimeout(syncGestureZoneBottomToControls, 450);
 
 
-// === HLS.JS INITIALIZATION ( WITH DEBUG & ERROR HANDLING ) ===
+// === HLS.JS INITIALIZATION (DEBUG OFF + AUTO-SEEK) ===
 const videoElement = document.getElementById('player');
 if (provider === "hls" && videoElement) {
   const sourceUrl = decodeURIComponent(video);
-  console.log("Attempting to load HLS URL:", sourceUrl);
 
   if (Hls.isSupported()) {
     const hls = new Hls({ 
-      debug: true, // Keep debug on to monitor the header injection
+      debug: false, // 👈 TURNED OFF: This fixes your UI lag immediately.
       xhrSetup: function (xhr, url) {
-        // Inject the exact auth key Heroku demands before sending the request
-        xhr.setRequestHeader('auth-key', 'romeo123');
+        xhr.setRequestHeader('auth-key', 'romeo123'); // Still bypassing Heroku security
       }
     });
     
     hls.loadSource(sourceUrl);
     hls.attachMedia(videoElement);
     
-    // Listen for errors
+    // 👈 NEW: Auto-Jump to Live Edge when stream connects
+    window.initialLiveSeekDone = false;
+    hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
+      if (data.details.live && !window.initialLiveSeekDone) {
+        window.initialLiveSeekDone = true;
+        setTimeout(() => {
+          if (hls.liveSyncPosition) {
+            videoElement.currentTime = hls.liveSyncPosition;
+          }
+        }, 200); // Small delay to let Plyr catch up
+      }
+    });
+
+    // Handle fatal errors silently to avoid console spam
     hls.on(Hls.Events.ERROR, function (event, data) {
-      console.error("HLS Event Error:", data.type, "-", data.details);
-      
       if (data.fatal) {
-        // Kill the infinite loading spinner
         hideCustomLoader(); 
-        
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            console.error("FATAL NETWORK ERROR: The server is blocking you (CORS) or the link is dead. It refuses to send the data to GitHub Pages.");
             hls.destroy();
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
-            console.error("FATAL MEDIA ERROR: The video format is unreadable.");
             hls.recoverMediaError();
             break;
           default:
@@ -1254,15 +1265,10 @@ if (provider === "hls" && videoElement) {
       }
     });
 
-    // Listen for success to hide loader just in case
-    hls.on(Hls.Events.MANIFEST_PARSED, function() {
-      console.log("Manifest loaded successfully! Stream is ready.");
-      hideCustomLoader();
-    });
-
+    hls.on(Hls.Events.MANIFEST_PARSED, hideCustomLoader);
     window.hls = hls; 
+
   } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-    console.log("Using native Safari/iOS HLS fallback.");
     videoElement.src = sourceUrl;
   }
 }
@@ -1971,16 +1977,16 @@ player.media?.addEventListener('loadedmetadata', () => {
     const totalMs = Math.floor(player.duration * 1000);
     sessionTotalDuration.textContent = formatSessionTime(totalMs);
   }
-  // if already playing when metadata arrives, start timer (unless buffering)
+  //   If Already Playing When Metadata Arrives ,  Start Timer  ( Unless Buffering )
   if (!player.paused && !isBufferingOrSeeking) {
     startSessionTimer();
     setSessionDotState("playing");
   }
 });
 
-// Plyr events: play/pause/ended
+//   Plyr Events  :  Play / Pause / Ended
 player.on("play", () => {
-  // don't start if we're in buffering state
+  //   Don't Start If We're in Buffering State
   setSessionDotState("playing");
   if (isMetadataLoaded && !isBufferingOrSeeking) startSessionTimer();
 });
@@ -1995,26 +2001,26 @@ player.on("ended", () => {
   stopSessionTimer();
 });
 
-// Buffer/seeking related events (Plyr-level)
+//   Buffer / Seeking  Related Events  ( Plyr - level )
 player.on("seeking", enterBuffering);
 player.on("waiting", enterBuffering);
 player.on("stalled", enterBuffering);
 
-// When playback actually resumes, clear buffering state
+//   When Playback Actually Resumes ,  Clear Buffering State
 player.on("playing", exitBuffering);
 player.on("canplay", exitBuffering);
 player.on("canplaythrough", exitBuffering);
 
-// Seeked is sometimes emitted before playing/canplay; try to recover gracefully
+//   Seeked is Sometimes Emitted Before  Playing / Canplay  ;  Try To Recover Gracefully
 player.on("seeked", () => {
-  // If it becomes playing shortly after seek, exitBuffering will be called by 'playing'.
-  // But in some cases the player is already playing after seek; handle that.
+  //   If It Becomes Playing Shortly After Seek ,  exitBuffering Will Be Called By  ' playing' .
+  //   But in Some Cases The Player is Already Playing After Seek ;  Handle That.
   setTimeout(() => {
     if (!player.paused) exitBuffering();
   }, 250);
 });
 
-// Also attach native media events where available (HTML5 path)
+//   Also Attach Native Media Events Where Available  ( HTML5 path )
 if (player.media) {
   player.media.addEventListener('seeking', enterBuffering);
   player.media.addEventListener('waiting', enterBuffering);
@@ -2029,13 +2035,13 @@ if (player.media) {
   });
 }
 
-// WATCHDOG: detect "time not advancing while player claims to be playing"
-// This helps with providers (YouTube iframe) where events or readyState may be unreliable.
+//   WATCHDOG  :  Detect  " Time Not Advancing While Player Claims to Be Playing "
+//   This Helps With Providers  ( YouTube iframe )  Where Events or readyState May Be Unreliable .
 if (watchdogIntervalId) clearInterval(watchdogIntervalId);
 watchdogIntervalId = setInterval(() => {
   if (!isMetadataLoaded) return;
 
-  // if paused or ended, reset tracking
+  //   If Paused or Ended ,  Reset Tracking
   if (player.paused || player.ended) {
     lastObservedTime = Number(player.currentTime || 0);
     timeStuckSince = null;
@@ -2043,28 +2049,27 @@ watchdogIntervalId = setInterval(() => {
   }
 
   const cur = Number(player.currentTime || 0);
-  // time hasn't advanced enough
+  //   Time Hasn't Advanced Enough
   if (Math.abs(cur - lastObservedTime) < 0.05) {
     if (!timeStuckSince) timeStuckSince = Date.now();
     else if (Date.now() - timeStuckSince > TIME_STUCK_THRESHOLD_MS) {
-      // treat as buffering
+      //   Treat as Buffering
       enterBuffering();
     }
   } else {
-    // time is advancing
+    //   Time is Advancing
     timeStuckSince = null;
     if (isBufferingOrSeeking) exitBuffering();
   }
   lastObservedTime = cur;
 }, WATCHDOG_INTERVAL_MS);
 
-// End improved session logic
+//   End Improved Session Logic
 
-// ========== Progress Cards (Watched / Remaining) ==========
-// ========== Progress Cards (Watched / Remaining) ==========
+//   ==========  Progress Cards  ( Watched / Remaining )  ==========
 (function() {
-  const leftFill = document.getElementById('leftProgressFill');   // Watched bar
-  const rightFill = document.getElementById('rightProgressFill'); // Remaining bar
+  const leftFill = document.getElementById('leftProgressFill');         //   Watched Bar
+  const rightFill = document.getElementById('rightProgressFill');       //   Remaining Bar
   const leftPercentEl = document.getElementById('leftPercent');
   const rightPercentEl = document.getElementById('rightPercent');
 
@@ -2073,15 +2078,15 @@ watchdogIntervalId = setInterval(() => {
     return;
   }
 
-  // Helper: format with leading zero + 2 decimals
+  //   Helper  :  Format With  Leading Zero + 2 Decimals
   function formatPercent(value) {
-    const fixed = value.toFixed(2);       // e.g. "3.50"
+    const fixed = value.toFixed(2);                 //   e.g.  -  " 3.50 "
     const [intPart, decPart] = fixed.split('.');
-    const paddedInt = intPart.padStart(2, '0'); // "03"
+    const paddedInt = intPart.padStart(2, '0');     //   " 03 "
     return `${paddedInt}.${decPart}`;
   }
 
-  // Initial UI (before playback starts or at 0:00)
+  //   Initial UI  ( Before Playback Starts Or At 0:00 )
   function setInitialUI() {
     leftFill.style.width = '0%';
     rightFill.style.width = '100%';
@@ -2089,13 +2094,14 @@ watchdogIntervalId = setInterval(() => {
     rightPercentEl.textContent = '100%  Remaining';
   }
 
-  // Update while video is playing/seeking
+  //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
     const dur = Number(player.duration || 0);
     const cur = Number(player.currentTime || 0);
 
     if (!dur || !isFinite(dur) || dur === 0) {
-      setInitialUI();
+      //   If It's a Live Stream Without a Known Duration Yet ,  Still Check For Live Drift
+      checkLiveDrift(cur, dur);
       return;
     }
 
@@ -2103,81 +2109,136 @@ watchdogIntervalId = setInterval(() => {
     let watchedPct = frac * 100;
     let remPct = 100 - watchedPct;
 
-    // Handle start
+    //   Handle Start
     if (cur === 0) {
-      leftFill.style.width = '0 %';
-      rightFill.style.width = '100 %';
-      leftPercentEl.textContent = '0 %   Watched';
-      rightPercentEl.textContent = '100 %   Remaining';
-      return;
+      leftFill.style.width = '0%';
+      rightFill.style.width = '100%';
+      leftPercentEl.textContent = '0%   Watched';
+      rightPercentEl.textContent = '100%   Remaining';
+    } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
+      //   Handle End
+      leftFill.style.width = '100%';
+      rightFill.style.width = '0%';
+      leftPercentEl.textContent = '100%   Watched';
+      rightPercentEl.textContent = '0%   Remaining';
+    } else {
+      //   Normal Playback
+      leftFill.style.width = `${watchedPct.toFixed(2)}%`;
+      rightFill.style.width = `${remPct.toFixed(2)}%`;
+      leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
+      rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
     }
 
-    // Handle end
-    if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
-      leftFill.style.width = '100 %';
-      rightFill.style.width = '0 %';
-      leftPercentEl.textContent = '100 %   Watched';
-      rightPercentEl.textContent = '0 %   Remaining';
-      return;
-    }
-
-    // Normal playback (force 2 digits before decimal + 2 decimals)
-    leftFill.style.width = `${watchedPct.toFixed(2)}%`;
-    rightFill.style.width = `${remPct.toFixed(2)}%`;
-
-    leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
-    rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
-
-    // Update wave fill levels
-    if (window.watchedWave) window.watchedWave.update(frac);        // 0..1
+    //   Update Wave Fill Levels
+    if (window.watchedWave) window.watchedWave.update(frac);
     if (window.remainingWave) window.remainingWave.update(1 - frac);
     
+    //   👇🏻  DYNAMIC LIVE STREAM UI LOGIC  👇🏻
+    checkLiveDrift(cur, dur);
   }
 
-  // Init
+  function checkLiveDrift(cur, dur) {
+    const liveIndicator = document.getElementById('liveIndicator');
+    const liveIndicatorText = document.getElementById('liveIndicatorText');
+    const liveIndicatorDot = document.getElementById('liveIndicatorDot');
+    
+    if (!liveIndicator) return;
+
+    let isLive = false;
+    let liveEdgeTime = dur;
+
+    //   Detect If Heroku is Serving a Live Sliding Window Via  hls.js
+    if (window.hls && window.hls.levels && window.hls.levels.length > 0) {
+        const currentLevel = window.hls.levels[window.hls.currentLevel];
+        if (currentLevel && currentLevel.details && currentLevel.details.live) {
+            isLive = true;
+            liveEdgeTime = window.hls.liveSyncPosition || dur;
+        }
+    } else if (dur === Infinity || (window.hls && window.hls.currentLevel === -1 && window.hls.url)) {
+        //   Fallback Live Check For Raw Streams
+        isLive = true;
+    }
+
+    if (isLive) {
+        liveIndicator.style.display = 'flex';
+        
+        //   Calculate Drift  ( How Far Behind The Live Edge The User is )
+        const secondsBehind = liveEdgeTime - cur;
+        
+        //   If They Fall More Than 6 Seconds Behind The Server  ( Due To Buffering or Dragging Backward )
+        if (secondsBehind > 6) { 
+            liveIndicatorText.textContent = "Go Live";
+            liveIndicatorText.style.color = "#ef4444"; // Red
+            liveIndicatorDot.style.backgroundColor = "#ef4444";
+            liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
+        } else {
+            liveIndicatorText.textContent = "LIVE";
+            liveIndicatorText.style.color = "#16a34a"; // Green
+            liveIndicatorDot.style.backgroundColor = "#16a34a";
+            liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+        }
+    } else {
+        //   Completely Hidden On Standard  VODs / MP4s
+        liveIndicator.style.display = 'none';
+    }
+  }
+
+  //   Make The Live Indicator Button Clickable To Forcefully Jump Back To Live Edge
+  const liveInd = document.getElementById('liveIndicator');
+  if (liveInd) {
+    liveInd.addEventListener('click', () => {
+      if (window.hls && window.hls.liveSyncPosition) {
+        player.currentTime = window.hls.liveSyncPosition;
+      } else if (player.duration && player.duration !== Infinity) {
+        player.currentTime = player.duration;
+      }
+    });
+  }
+  
+  //   Init
   setInitialUI();
 
-  // Attach events
+  //   Attach Events
   player.on('timeupdate', updateProgressFromPlayer);
   player.on('play', updateProgressFromPlayer);
   player.on('seeked', updateProgressFromPlayer);
   player.on('loadedmetadata', updateProgressFromPlayer);
   player.on('ended', updateProgressFromPlayer);
 
-  // Safety update
+  //   Safety Update
   setTimeout(updateProgressFromPlayer, 80);
 })();
 
-// 🎊 Water Wave Effect Under Info Cards (Final Version)
-// - Smooth continuous wave animation (no jitter)
-// - Inner water circle inset (with gap around it)
-// - Outer ring with configurable color
-// - Water wave gradient color remains constant
+//   🎊  Water Wave Effect Under Info Cards  ( Final Version )
+//   -  Smooth Continuous Wave Animation  ( No Jitter )
+//   -  Inner Water Circle Inset  ( With Gap Around It )
+//   -  Outer Ring With Configurable Color
+//   -  Water Wave Gradient Color Remains Constant
 function createWaveCircle(
   containerId,
-  color1 = "#6faeff",   // top of water gradient
-  color2 = "#1d5ee9",   // bottom of water gradient
-  ringColor = "#1d5ee9" // only outer ring color (customizable)
+  color1 = "#6faeff",                 //   Top of Water Gradient
+  color2 = "#1d5ee9",                 //   Bottom of Water Gradient
+  ringColor = "#1d5ee9"               //   Only Outer Ring Color  ( Customizable )
 ) {
-  const SIZE = 60;                       // total SVG size
+  const SIZE = 60;                    //   Total SVG Size
   const svgNS = "http://www.w3.org/2000/svg";
   const container = document.getElementById(containerId);
 
-  // Outer ring radius
+  //   Outer Ring Radius
   const outerR = SIZE / 2 - 2;
-  // Inner circle radius (for water area) – slightly smaller to create the "gap"
-  const innerR = outerR - 4;  // gap size = 4px, adjust if needed
+  //   Inner Circle Radius  ( For Water Area )  –  Slightly Smaller To Create The  " gap "
+  const innerR = outerR - 4;          //   Gap Size  =  4px , Adjust If Needed
 
-  // Create SVG container
+  //   Create SVG Container
   const svg = document.createElementNS(svgNS, "svg");
   svg.setAttribute("width", SIZE);
   svg.setAttribute("height", SIZE);
   svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
 
-  // ====== Defs (gradient + clip) ======
+  //   ======  Defs  ( Gradient + Clip )  ======
   const defs = document.createElementNS(svgNS, "defs");
 
-  // Gradient for the water
+  //   Gradient For The Water
   const grad = document.createElementNS(svgNS, "linearGradient");
   grad.id = containerId + "grad";
   grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0");
@@ -2194,7 +2255,7 @@ function createWaveCircle(
   grad.appendChild(stop2);
   defs.appendChild(grad);
 
-  // Clip-path (only inside the smaller inner circle)
+  //   Clip - Path  ( Only Inside The Smaller Inner Circle )
   const clip = document.createElementNS(svgNS, "clipPath");
   clip.id = containerId + "clip";
   const circle = document.createElementNS(svgNS, "circle");
@@ -2206,25 +2267,25 @@ function createWaveCircle(
 
   svg.appendChild(defs);
 
-  // ====== Background inner circle ======
+  //   ======  Background Inner Circle  ======
   const bgCircle = document.createElementNS(svgNS, "circle");
   bgCircle.setAttribute("cx", SIZE / 2);
   bgCircle.setAttribute("cy", SIZE / 2);
   bgCircle.setAttribute("r", innerR);
-  bgCircle.setAttribute("fill", "#fff"); // white background behind waves
+  bgCircle.setAttribute("fill", "#fff");           //   White Background Behind Waves
   svg.appendChild(bgCircle);
 
-  // ====== Outer ring ======
+  //   ======  Outer Ring  ======
   const outerRing = document.createElementNS(svgNS, "circle");
   outerRing.setAttribute("cx", SIZE / 2);
   outerRing.setAttribute("cy", SIZE / 2);
   outerRing.setAttribute("r", outerR);
   outerRing.setAttribute("fill", "none");
-  outerRing.setAttribute("stroke", ringColor); // configurable ring color
+  outerRing.setAttribute("stroke", ringColor);     //   Configurable Ring Color
   outerRing.setAttribute("stroke-width", 2);
   svg.appendChild(outerRing);
 
-  // ====== Water group (clipped) ======
+  //   ======  Water Group  ( Clipped )  ======
   const g = document.createElementNS(svgNS, "g");
   g.setAttribute("clip-path", `url(#${clip.id})`);
 
@@ -2241,14 +2302,14 @@ function createWaveCircle(
   svg.appendChild(g);
   container.appendChild(svg);
 
-  // ====== Animation state ======
-  let targetProgress = 0;   // set by .update(progress)
-  let smoothProgress = 0;   // lerped value for smooth rise
+  //   ======  Animation State  ======
+  let targetProgress = 0;       //   Set By .update(progress)
+  let smoothProgress = 0;       //   Lerped Value For Smooth Rise
   let phase1 = 0, phase2 = 0;
 
-  // Wave generator function
+  //   Wave Generator Function
   function buildWave(width, amp, freq, phase, levelY) {
-    const step = 1; // smaller = smoother, bigger = faster performance
+    const step = 1;             //   Smaller  =  Smoother ,  Bigger  =  Faster Performance
     let d = `M0 ${SIZE} `;
     for (let x = 0; x <= width; x += step) {
       const y = Math.sin((x / width) * freq * Math.PI * 2 + phase) * amp + levelY;
@@ -2258,17 +2319,17 @@ function createWaveCircle(
     return d;
   }
 
-  // ====== Animation loop ======
+  //   ======  Animation Loop  ======
   function animate() {
-    // Smoothly interpolate water level
+    //   Smoothly Interpolate Water Level
     smoothProgress += (targetProgress - smoothProgress) * 0.05;
     const levelY = SIZE - smoothProgress * SIZE;
 
-    // Advance wave phases
+    //   Advance Wave Phases
     phase1 -= 0.05;
     phase2 -= 0.07;
 
-    // Update wave paths
+    //   Update Wave Paths
     wave1.setAttribute("d", buildWave(SIZE, 3, 2, phase1, levelY));
     wave2.setAttribute("d", buildWave(SIZE, 2, 1.5, phase2, levelY + 2));
 
@@ -2276,7 +2337,7 @@ function createWaveCircle(
   }
   requestAnimationFrame(animate);
 
-  // ====== Public API ======
+  //   ======  Public API  ======
   return {
     update(progress) {
       targetProgress = Math.max(0, Math.min(1, Number(progress) || 0));
@@ -2284,7 +2345,7 @@ function createWaveCircle(
   };
 }
   
-// init after DOM
+//   Init After DOM
 window.watchedWave = createWaveCircle("watchedWave", "#6faeff", "#1d5ee9", "#9c0892");     //   ✅ Pinkish Ring
 window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "#874609");     //    ✅ Orange Ring
   
