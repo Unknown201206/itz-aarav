@@ -2138,33 +2138,40 @@ watchdogIntervalId = setInterval(() => {
     let isLive = false;
     let liveEdgeTime = dur;
 
+    //   1.  Strictly Detect If The Stream is an Active Live Broadcast
     if (window.hls && window.hls.levels && window.hls.levels.length > 0) {
-        const currentLevel = window.hls.levels[window.hls.currentLevel];
+        //   Handle  ' Auto '  Mode Where currentLevel  is  " -1 "  By Checking The First Level
+        const levelIndex = window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel;
+        const currentLevel = window.hls.levels[levelIndex];
+        
         if (currentLevel && currentLevel.details && currentLevel.details.live) {
             isLive = true;
             liveEdgeTime = window.hls.liveSyncPosition || dur;
         }
-    } else if (dur === Infinity || (window.hls && window.hls.currentLevel === -1 && window.hls.url)) {
+    } else if (dur === Infinity) {
+        //   Fallback For Nativev Safari / iOS  HLS Live Streams
         isLive = true;
     }
 
-    //   Always Ensure The Badge is Visible Now
-    liveIndicator.style.display = 'flex';
-
-    let showAsLive = false;
-    if (isLive) {
-        const secondsBehind = liveEdgeTime - cur;
-        if (secondsBehind <= 6) { 
-            showAsLive = true;
-        }
+    //   2.  SMART TOGGLE  :  If It's a Normal  MP4 or VOD ,  Hide The Button Completely
+    if (!isLive) {
+        liveIndicator.style.display = 'none';
+        return;
     }
 
-    if (showAsLive) {
+    //   3.  Stream is Live .  Ensure Button is Visible & Check For Drift .
+    liveIndicator.style.display = 'flex';
+
+    const secondsBehind = liveEdgeTime - cur;
+
+    if (secondsBehind <= 6) { 
+        //   User is Synced With The Server
         liveIndicatorText.textContent = "LIVE";
-        liveIndicatorText.style.color = "#16a34a"; // Green
+        liveIndicatorText.style.color = "#16a34a";          //   Green
         liveIndicatorDot.style.backgroundColor = "#16a34a";
         liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
     } else {
+        //   User Fell Behind The Server  ( Buffering or Manually Scrubbing Back )
         liveIndicatorText.textContent = "NOT LIVE";
         liveIndicatorText.style.color = "#ef4444"; // Red
         liveIndicatorDot.style.backgroundColor = "#ef4444";
