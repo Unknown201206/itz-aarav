@@ -1027,9 +1027,9 @@
 
         <div class="percent-text" id="rightPercent">100&nbsp;% &nbsp;&nbsp;&nbsp;Remaining</div>
         
-        <div id="liveIndicator" style="display: none; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 2px 10px; border-radius: 12px; transition: all 0.2s;">
-          <span id="liveIndicatorText">LIVE</span>
-          <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
+        <div id="liveIndicator" style="display: none; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
+                  <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
+                  <span id="liveIndicatorText">LIVE</span>
         </div>
 
       </div>
@@ -1274,13 +1274,30 @@ if (provider === "hls" && videoElement) {
 }
 
 
-// Plyr instance with your custom config untouched
+//   Plyr Instance With HLS Quality Bridge
 window.player = new Plyr('#player', {
   controls: [
     'play-large', 'play', 'progress', 'current-time',
     'duration', 'mute', 'captions', 'settings', 'fullscreen'
   ],
-  settings: ['speed', 'volume'],
+  //   👇🏻   Added  'quality'  Before  'speed'  So It Sits On Top in The Menu
+  settings: ['quality', 'speed', 'volume'], 
+  quality: {
+    default: 0,          //   0 Maps To Auto
+    options: [0, 1080, 720, 480, 360, 240],     //   Standard Live Stream Resolutions
+    forced: true,
+    onChange: (newQuality) => {
+      if (window.hls) {
+        if (newQuality === 0) {
+          window.hls.currentLevel = -1;         //   Auto Mode
+        } else {
+          //   Tell  hls.js  To Switch To The Exact Resolution Requested
+          const levelIndex = window.hls.levels.findIndex(l => l.height === newQuality);
+          if (levelIndex !== -1) window.hls.currentLevel = levelIndex;
+        }
+      }
+    }
+  },
   toggleInvert: true,           
   speed: {
     selected: 1,
@@ -1289,11 +1306,12 @@ window.player = new Plyr('#player', {
   youtube: { modestbranding: 1, rel: 0, noCookie: true }
 });
 
-// Attach ready listener now that player is initialized
+
+//   Attach Ready Listener Now That Player is Initialized
 player.on('ready', syncGestureZoneBottomToControls);
 
 
-// 🔥 Hook Plyr events to our custom loader (#playerLoader)
+//   🔥  Hook Plyr Events to Our Custom Loader ( #playerLoader )
 const myLoader = document.getElementById('playerLoader');
 
 function showCustomLoader() {
@@ -1305,30 +1323,30 @@ function hideCustomLoader() {
   myLoader.classList.remove('show');
 }
 
-// Show loader when fetching or buffering
+//   Show Loader When Fetching or Buffering
 player.on('loadstart', showCustomLoader);
 player.on('waiting', showCustomLoader);
 player.on('seeking', showCustomLoader);
 
-// Hide loader when ready or playing
+//   Hide Loader When Ready or Playing
 player.on('canplay', hideCustomLoader);
 player.on('playing', hideCustomLoader);
 player.on('seeked', hideCustomLoader);
 
-// Also hide on errors (don’t freeze loader forever)
+//   Also Hide on Errors  ( Don’t Freeze Loader Forever )
 player.on('error', hideCustomLoader);
 
-// Safety: show immediately on page load, hide when metadata is ready
+//   Safety  :  Show Immediately On Page Load ,  Hide When Metadata is Ready
 showCustomLoader();
 player.on('loadeddata', hideCustomLoader);
 
-//   🎊 Attach ready handler now that player exists
+//   🎊  Attach Ready Handler Now That Player Exists
 player.on('ready', syncGestureZoneBottomToControls);
 
-//   🎊 Run once immediately as a safety (in case layout is already ready)
+//   🎊  Run Once Immediately as a Safety  ( in Case Layout is Already Ready )
 syncGestureZoneBottomToControls();
 
-//   🔥 Robust toggle for elapsed <-> remaining display when clicking the time area
+//   🔥  Robust Toggle For  Elapsed  <->  Remaining  Display When Clicking The Time Area
 (function() {
   const root = document.querySelector('.plyr');
   if (!root) return;
@@ -1339,13 +1357,13 @@ syncGestureZoneBottomToControls();
 
     e.stopPropagation();
 
-    // Try Plyr's API if available
+    //   Try Plyr's API if Available
     if (player && typeof player.toggleInvertTime === 'function') {
       player.toggleInvertTime();
       return;
     }
 
-    // Fallback: maintain our own toggle
+    //   Fallback  :  Maintain Our Own Toggle
     if (!root._myInvertToggle) {
       root._myInvertToggle = { enabled: false };
 
@@ -1367,13 +1385,13 @@ syncGestureZoneBottomToControls();
   }, true);
 })();
 
-//   ✅ Add this line after player init
+//   ✅  Add This Line After Player Init
 closeCustomMenusWhenSettingsOpens();
 
-// On Plyr ready event, skip logic untouched
+//   On Plyr Ready Event ,  Skip Logic Untouched
 player.on('ready', () => {
   try {
-    //   ✨ Skip 13 seconds for all non-YouTube videos, UNLESS " noskip " & " skipSeconds " flag is Set
+    //   ✨  Skip 13 Seconds For All  Non - YouTube  Videos ,  UNLESS  " noskip "  &  " skipSeconds "  Flag is SET
     if (!noSkip && player.provider !== 'youtube' && player.media) {
       player.media.addEventListener("loadedmetadata", () => {
         if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
@@ -1406,7 +1424,7 @@ function toggleDarkMode(e) {
   setTimeout(() => body.classList.remove('theme-ripple'), 700);
 }
 
-// Gesture logic NOT affected
+//   Gesture Logic NOT Affected
 function initGestures(type) {
   setupGestureZone('gestureLeft', -10);
   setupGestureZone('gestureRight', 10);
@@ -1481,13 +1499,13 @@ function setupMenuOverlayBlock() {
   });
 }
 
-/* ---   ✅ Close other menus when Settings opens --- */
+/*   <---  ✅  Close Other Menus When Settings Opens  --->   */
 function closeCustomMenusWhenSettingsOpens() {
   const plyrRoot = document.querySelector('.plyr');
   if (!plyrRoot) return;
   new MutationObserver((mutationsList) => {
     mutationsList.forEach(mutation => {
-      // Menu has just OPENED
+      //   Menu Has Just Opened
       if (
         mutation.attributeName === 'class' &&
         plyrRoot.classList.contains('plyr--menu-open')
@@ -1498,10 +1516,10 @@ function closeCustomMenusWhenSettingsOpens() {
   }).observe(plyrRoot, { attributes: true, attributeFilter: ['class'] });
 }
 
-/* --- Close other menus when new one opens --- */
-// === REPLACE THE EXISTING closeAllMenus WITH THIS ===
+/*   <---  Close Other Menus When New One Opens  --->   */
+//   ===   REPLACE THE EXISTING  closeAllMenus  WITH THIS   ===
 function closeAllMenus(exceptId) {
-  // hide our custom menus (except the one we want to keep open)
+  //   Hide Our Custom Menus  ( Except The One We Want To Keep Open )
   const menus = ['seekIntervalMenu', 'inlineVolumeSlider'];
   menus.forEach(id => {
     if (id !== exceptId) {
@@ -1510,10 +1528,10 @@ function closeAllMenus(exceptId) {
     }
   });
 
-  // If we should close Plyr's settings/menu UI, do it thoroughly
+  //   If We Should Close Plyr's  Settings / Menu  UI ,  Do It Thoroughly
   const plyrRoot = document.querySelector('.plyr');
     if (exceptId !== 'plyr-settings' && plyrRoot) {
-      // If Plyr's settings menu is open, simulate a toggle click to close it properly
+      //   If Plyr's Settings Menu is Open ,  Simulate a Toggle Click To Close It Properly
       if (plyrRoot.classList.contains('plyr--menu-open')) {
         const settingsBtn = plyrRoot.querySelector('[data-plyr="settings"]');
         if (settingsBtn) settingsBtn.click();
@@ -1523,11 +1541,11 @@ function closeAllMenus(exceptId) {
 
   function instantHideMenu(menu) {
     if (!menu) return;
-    // Disable transition to prevent closing animation
+    //   Disable Transition To Prevent Closing Animation
     menu.style.transition = 'none';
     menu.classList.remove('menu-show');
     menu.style.display = 'none';
-    // Restore transition for next open
+    //   Restore Transition For Next Open
     setTimeout(() => {
       menu.style.transition = '';
     }, 1);
@@ -1537,9 +1555,9 @@ function closeAllMenus(exceptId) {
     const intervalBtn = document.querySelector('#customSeekControls .plyr__control--seek:nth-child(2)');
     if (!intervalBtn) return;
     if (isHighlighted) {
-      intervalBtn.style.background = '#14b9ff';    //   Highlighted color For Button
+      intervalBtn.style.background = '#14b9ff';                 //   Highlighted Color For Button
     } else {
-      intervalBtn.style.background = 'rgba(30,30,30,0.5)';    //   Default color For Button
+      intervalBtn.style.background = 'rgba(30,30,30,0.5)';      //   Default Color For Button
     }
   }
   
@@ -1569,10 +1587,10 @@ function closeAllMenus(exceptId) {
     updateGestures();
   }
   
-  // Call closeAllMenus('seekIntervalMenu') before showing interval menu
-  // Call closeAllMenus('inlineVolumeSlider') before showing volume slider
+  //   Call  closeAllMenus('seekIntervalMenu')  Before Showing Interval Menu
+  //   Call  closeAllMenus('inlineVolumeSlider')  Before Showing Volume Slider
 
-// ========== CUSTOM SEEK BUTTONS (keep only right-side ==========
+//   ==========  CUSTOM SEEK BUTTONS  ( Keep Only  Right - Side )  ==========
 
 function injectCustomSeekControls() {
   const controls = document.querySelector('.plyr__controls');
@@ -1582,7 +1600,7 @@ function injectCustomSeekControls() {
   const container = document.createElement('div');
   container.id = 'customSeekControls';
 
-  // Standard Plyr SVG for backward/forward
+  //   Standard Plyr SVG For  Backward / Forward
   const svgRewind = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M6.5 10.76V16L1 10L6.5 4V7.1C12.5 7.48 17 9.28 19 13.74C17.18 12.04 12.5 11.16 7 11.15C6.83 11.15 6.66 11.14 6.5 11.13V10.76Z" fill="#fff"/></svg>`;
   const svgForward = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13.5 10.76V16L19 10L13.5 4V7.1C7.5 7.48 3 9.28 1 13.74C2.82 12.04 7.5 11.16 13 11.15C13.17 11.15 13.34 11.14 13.5 11.13V10.76Z" fill="#fff"/></svg>`;
 
@@ -2167,7 +2185,7 @@ watchdogIntervalId = setInterval(() => {
         
         //   If They Fall More Than 6 Seconds Behind The Server  ( Due To Buffering or Dragging Backward )
         if (secondsBehind > 6) { 
-            liveIndicatorText.textContent = "Go Live";
+            liveIndicatorText.textContent = "NOT LIVE";
             liveIndicatorText.style.color = "#ef4444"; // Red
             liveIndicatorDot.style.backgroundColor = "#ef4444";
             liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
