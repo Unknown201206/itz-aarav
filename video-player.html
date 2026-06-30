@@ -2159,9 +2159,8 @@ watchdogIntervalId = setInterval(() => {
     let isLive = false;
     let liveEdgeTime = dur;
 
-    //   1.  Strictly Detect If The Stream is an Active Live Broadcast
+    //   1.  Detect HLS Streams  ( PW / Custom M3U8 )
     if (window.hls && window.hls.levels && window.hls.levels.length > 0) {
-        //   Handle  ' Auto '  Mode Where currentLevel  is  " -1 "  By Checking The First Level
         const levelIndex = window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel;
         const currentLevel = window.hls.levels[levelIndex];
         
@@ -2169,32 +2168,46 @@ watchdogIntervalId = setInterval(() => {
             isLive = true;
             liveEdgeTime = window.hls.liveSyncPosition || dur;
         }
-    } else if (dur === Infinity) {
-        //   Fallback For Nativev Safari / iOS  HLS Live Streams
+    } 
+    //   2.  Detect YouTube Streams  ( Exploiting Undocumented Iframe API )
+    else if (player.provider === 'youtube' && player.embed && typeof player.embed.getVideoData === 'function') {
+        const ytData = player.embed.getVideoData();
+        //   Check Google's Hidden Internal Live Flag
+        if (ytData && ytData.isLive) {
+            isLive = true;
+            liveEdgeTime = dur;         //  On YouTube ,  The  ' duration '  Property Acts as The Live Edge
+        }
+    }
+    //   3.  Fallback For iOS Native Safari Streams
+    else if (dur === Infinity) {
         isLive = true;
     }
 
-    //   2.  SMART TOGGLE  :  If It's a Normal  MP4 or VOD ,  Hide The Button Completely
+    //   SMART TOGGLE  :  Hide Completely If It's a Normal  MP4 or YouTube VOD
     if (!isLive) {
         liveIndicator.style.display = 'none';
         return;
     }
 
-    //   3.  Stream is Live .  Ensure Button is Visible & Check For Drift .
+    //   Stream is Live .  Ensure Button is Visible .
     liveIndicator.style.display = 'flex';
 
     const secondsBehind = liveEdgeTime - cur;
+    
+    //   YouTube's Video Chunks Load Much Slower Than HLS Chunks .
+    //   We Must Increase The YouTube Drift Tolerance To 12 Seconds So The Button Doesn't Flash Randomly .
+    const driftTolerance = player.provider === 'youtube' ? 12 : 6;
 
-    if (secondsBehind <= 6) { 
+    if (secondsBehind <= driftTolerance) { 
         //   User is Synced With The Server
         liveIndicatorText.textContent = "LIVE";
-        liveIndicatorText.style.color = "#16a34a";          //   Green
+        liveIndicatorText.style.color = "#16a34a";             //   Green
         liveIndicatorDot.style.backgroundColor = "#16a34a";
         liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
     } else {
         //   User Fell Behind The Server  ( Buffering or Manually Scrubbing Back )
         liveIndicatorText.textContent = "NOT LIVE";
-        liveIndicatorText.style.color = "#ef4444"; // Red
+        liveIndicatorText.style.color = "#ef4444";             //   Red
         liveIndicatorDot.style.backgroundColor = "#ef4444";
         liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
     }
