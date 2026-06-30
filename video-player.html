@@ -1075,7 +1075,10 @@
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
 
+  
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+
 <script>
 const params = new URLSearchParams(window.location.search);
 const title = params.get("title");
@@ -1123,7 +1126,7 @@ if (provider === "youtube" && videoID) {
       setupMenuOverlayBlock();
       injectCustomSeekControls();
       injectInlineVolumeSlider();
-      disableGesturesWhileMenusOpen();   // ✅ Added here
+      disableGesturesWhileMenusOpen();
   }, 500);
 } else if (provider === "html5" && video) {
   wrapper.innerHTML += `
@@ -1139,11 +1142,26 @@ if (provider === "youtube" && videoID) {
       setupMenuOverlayBlock();
       injectCustomSeekControls();
       injectInlineVolumeSlider();
-      disableGesturesWhileMenusOpen();   // ✅ Added here too
+      disableGesturesWhileMenusOpen();
+  }, 500);
+} else if (provider === "hls" && video) {
+  // NEW HLS BLOCK: No source tag; HLS.js feeds the video element directly
+  wrapper.innerHTML += `
+    <div class="relative aspect-video rounded w-full h-full">
+      <video id="player" controls class="rounded w-full h-full" style="background:black;" playsinline></video>
+      <div id="gestureLeft" class="gesture-zone"></div>
+      <div id="gestureRight" class="gesture-zone"></div>
+    </div>`;
+  setTimeout(() => { 
+      initGestures('hls');
+      setupMenuOverlayBlock();
+      injectCustomSeekControls();
+      injectInlineVolumeSlider();
+      disableGesturesWhileMenusOpen();
   }, 500);
 }
 
-// Ensure gesture zones never overlap the controls — compute controls height and set bottom
+// Ensure gesture zones never overlap the controls
 function syncGestureZoneBottomToControls() {
   const controls = document.querySelector('.plyr__controls');
   const zones = Array.from(document.querySelectorAll('.gesture-zone'));
@@ -1151,45 +1169,52 @@ function syncGestureZoneBottomToControls() {
   const controlHeight = Math.ceil(controls.getBoundingClientRect().height || 56);
   zones.forEach(z => {
     z.style.bottom = `${controlHeight}px`;
-    z.style.height = 'auto'; // clear hard height
+    z.style.height = 'auto'; 
   });
 }
 
 // run initially and whenever layout may change
 window.addEventListener('resize', syncGestureZoneBottomToControls);
-player.on && player.on('ready', syncGestureZoneBottomToControls);
+// Note: player.on attached lower down after player init
 
 // run a couple of times to catch layout shifts on mobile/slow render
 setTimeout(syncGestureZoneBottomToControls, 120);
 setTimeout(syncGestureZoneBottomToControls, 450);
 
-// Plyr instance with rewind and fast-forward REMOVED
+// === HLS.JS INITIALIZATION ===
+// Before initializing Plyr, we must attach the live stream to the video tag
+const videoElement = document.getElementById('player');
+if (provider === "hls" && videoElement) {
+  const sourceUrl = decodeURIComponent(video);
+  if (Hls.isSupported()) {
+    const hls = new Hls();
+    hls.loadSource(sourceUrl);
+    hls.attachMedia(videoElement);
+    window.hls = hls; // Expose to window for debugging
+  } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    // Fallback for Safari/iOS which supports HLS natively
+    videoElement.src = sourceUrl;
+  }
+}
+
+// Plyr instance with your custom config untouched
 window.player = new Plyr('#player', {
   controls: [
-    'play-large', // big play button
-    // 'restart',          //   ✅ Remoed from Controls
-    // 'rewind',           //   ✅ Removed from controls
-    'play',
-    // 'fast-forward',     //   ✅ Removed from controls
-    'progress',
-    'current-time',
-    'duration',
-    'mute',
-    // 'volume',
-    'captions',
-    'settings',
-    // 'pip',
-    // 'airplay',
-    'fullscreen'
+    'play-large', 'play', 'progress', 'current-time',
+    'duration', 'mute', 'captions', 'settings', 'fullscreen'
   ],
   settings: ['speed', 'volume'],
-  toggleInvert: true,           //  👈🏻 Add this line For Revese Countdown
+  toggleInvert: true,           
   speed: {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
   },
   youtube: { modestbranding: 1, rel: 0, noCookie: true }
 });
+
+// Attach ready listener now that player is initialized
+player.on('ready', syncGestureZoneBottomToControls);
+
 
 // 🔥 Hook Plyr events to our custom loader (#playerLoader)
 const myLoader = document.getElementById('playerLoader');
