@@ -1027,18 +1027,18 @@
 
         <div class="percent-text" id="rightPercent">100&nbsp;% &nbsp;&nbsp;&nbsp;Remaining</div>
         
-        <div id="liveIndicator" style="display: none; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
-                  <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
-                  <span id="liveIndicatorText">LIVE</span>
+        <div id="liveIndicator" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
+          <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
+          <span id="liveIndicatorText">LIVE</span>
         </div>
 
       </div>
     </div>
   </div>
-<!-- ---------- End Progress Cards & Hourglass ---------- -->
+<!--   ----------  End Progress Cards & Hourglass  ----------   -->
 
-<!-- Current Session Card -->
-<!-- Current Session Card -->
+<!--   Current Session Card   -->
+<!--   Current Session Card   -->
 <div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[20px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
@@ -1096,7 +1096,7 @@
   </div>
 </div>
 <script>
-  // Intercept all console logs and print them to the screen
+  //   Intercept All Console Logs & Print Them To The Screen
   const logBox = document.getElementById('mobile-console');
   function printLog(msg, color) {
     if(logBox) {
@@ -1145,7 +1145,7 @@ if (title) {
 
 const wrapper = document.getElementById("playerWrapper");
 
-// MAIN player load and gesture zone injection
+//   Main Player Load & Gesture Zone Injection
 if (provider === "youtube" && videoID) {
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
@@ -1181,7 +1181,7 @@ if (provider === "youtube" && videoID) {
       disableGesturesWhileMenusOpen();
   }, 500);
 } else if (provider === "hls" && video) {
-  // NEW HLS BLOCK: No source tag; HLS.js feeds the video element directly
+  //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
       <video id="player" controls class="rounded w-full h-full" style="background:black;" playsinline></video>
@@ -1197,7 +1197,7 @@ if (provider === "youtube" && videoID) {
   }, 500);
 }
 
-// Ensure gesture zones never overlap the controls
+//   Ensure Gesture Zones Never Overlap The Controls
 function syncGestureZoneBottomToControls() {
   const controls = document.querySelector('.plyr__controls');
   const zones = Array.from(document.querySelectorAll('.gesture-zone'));
@@ -1209,205 +1209,177 @@ function syncGestureZoneBottomToControls() {
   });
 }
 
-// run initially and whenever layout may change
+//   Run Initially & Whenever Layout May Change
 window.addEventListener('resize', syncGestureZoneBottomToControls);
-// Note: player.on attached lower down after player init
+//   Note  :  player.on  Attached Lower Down After Player Init
 
-// run a couple of times to catch layout shifts on mobile/slow render
+//   Run a Couple of Times To Catch Layout Shifts on  Mobile / Slow  Render
 setTimeout(syncGestureZoneBottomToControls, 120);
 setTimeout(syncGestureZoneBottomToControls, 450);
 
 
-// === HLS.JS INITIALIZATION (DEBUG OFF + AUTO-SEEK) ===
+//   =========================================================================
+//   ===   HLS.JS  INITIALIZATION  &  DYNAMIC  QUALITY  &  PLAYER  SETUP   ===
+//   =========================================================================
 const videoElement = document.getElementById('player');
-if (provider === "hls" && videoElement) {
-  const sourceUrl = decodeURIComponent(video);
 
-  if (Hls.isSupported()) {
-    const hls = new Hls({ 
-      debug: false, // 👈 TURNED OFF: This fixes your UI lag immediately.
-      xhrSetup: function (xhr, url) {
-        xhr.setRequestHeader('auth-key', 'romeo123'); // Still bypassing Heroku security
-      }
-    });
-    
-    hls.loadSource(sourceUrl);
-    hls.attachMedia(videoElement);
-    
-    // 👈 NEW: Auto-Jump to Live Edge when stream connects
-    window.initialLiveSeekDone = false;
-    hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
-      if (data.details.live && !window.initialLiveSeekDone) {
-        window.initialLiveSeekDone = true;
-        setTimeout(() => {
-          if (hls.liveSyncPosition) {
-            videoElement.currentTime = hls.liveSyncPosition;
-          }
-        }, 200); // Small delay to let Plyr catch up
-      }
-    });
-
-    // Handle fatal errors silently to avoid console spam
-    hls.on(Hls.Events.ERROR, function (event, data) {
-      if (data.fatal) {
-        hideCustomLoader(); 
-        switch (data.type) {
-          case Hls.ErrorTypes.NETWORK_ERROR:
-            hls.destroy();
-            break;
-          case Hls.ErrorTypes.MEDIA_ERROR:
-            hls.recoverMediaError();
-            break;
-          default:
-            hls.destroy();
-            break;
-        }
-      }
-    });
-
-    hls.on(Hls.Events.MANIFEST_PARSED, hideCustomLoader);
-    window.hls = hls; 
-
-  } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-    videoElement.src = sourceUrl;
-  }
-}
-
-
-//   Plyr Instance With HLS Quality Bridge
-window.player = new Plyr('#player', {
+const plyrConfig = {
   controls: [
     'play-large', 'play', 'progress', 'current-time',
     'duration', 'mute', 'captions', 'settings', 'fullscreen'
   ],
-  //   👇🏻   Added  'quality'  Before  'speed'  So It Sits On Top in The Menu
-  settings: ['quality', 'speed', 'volume'], 
-  quality: {
-    default: 0,          //   0 Maps To Auto
-    options: [0, 1080, 720, 480, 360, 240],     //   Standard Live Stream Resolutions
-    forced: true,
-    onChange: (newQuality) => {
-      if (window.hls) {
-        if (newQuality === 0) {
-          window.hls.currentLevel = -1;         //   Auto Mode
-        } else {
-          //   Tell  hls.js  To Switch To The Exact Resolution Requested
-          const levelIndex = window.hls.levels.findIndex(l => l.height === newQuality);
-          if (levelIndex !== -1) window.hls.currentLevel = levelIndex;
-        }
-      }
-    }
-  },
+  //   ' quality '  is Placed First So It Appears Above  ' speed '
+  settings: ['quality', 'speed', 'volume'],
   toggleInvert: true,           
   speed: {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
   },
   youtube: { modestbranding: 1, rel: 0, noCookie: true }
-});
+};
 
+//   We Wrap All Event Listeners in a Function So They Wait For Dynamic Qualities To Load
+function initAllPlayerEvents(plyrInstance) {
+  window.player = plyrInstance;
 
-//   Attach Ready Listener Now That Player is Initialized
-player.on('ready', syncGestureZoneBottomToControls);
+  player.on('ready', syncGestureZoneBottomToControls);
+  syncGestureZoneBottomToControls();
 
+  const myLoader = document.getElementById('playerLoader');
+  function showCustomLoader() { if(myLoader) myLoader.classList.add('show'); }
+  function hideCustomLoader() { if(myLoader) myLoader.classList.remove('show'); }
 
-//   🔥  Hook Plyr Events to Our Custom Loader ( #playerLoader )
-const myLoader = document.getElementById('playerLoader');
+  player.on('loadstart', showCustomLoader);
+  player.on('waiting', showCustomLoader);
+  player.on('seeking', showCustomLoader);
+  player.on('canplay', hideCustomLoader);
+  player.on('playing', hideCustomLoader);
+  player.on('seeked', hideCustomLoader);
+  player.on('error', hideCustomLoader);
+  showCustomLoader();
+  player.on('loadeddata', hideCustomLoader);
 
-function showCustomLoader() {
-  if (!myLoader) return;
-  myLoader.classList.add('show');
+  //   Invert Time Toggle
+  (function() {
+    const root = document.querySelector('.plyr');
+    if (!root) return;
+    root.addEventListener('click', function (e) {
+      const timeWrap = e.target.closest('.plyr__time');
+      if (!timeWrap) return;
+      e.stopPropagation();
+      if (player && typeof player.toggleInvertTime === 'function') {
+        player.toggleInvertTime();
+        return;
+      }
+      if (!root._myInvertToggle) {
+        root._myInvertToggle = { enabled: false };
+        player.on('timeupdate', () => {
+          const curEl = root.querySelector('.plyr__time--current');
+          if (!curEl) return;
+          if (root._myInvertToggle.enabled) {
+            const dur = Math.floor(player.duration || 0);
+            const cur = Math.floor(player.currentTime || 0);
+            const remaining = Math.max(0, dur - cur);
+            curEl.textContent = '-' + formatTime(remaining);
+          } else {
+            curEl.textContent = formatTime(Math.floor(player.currentTime || 0));
+          }
+        });
+      }
+      root._myInvertToggle.enabled = !root._myInvertToggle.enabled;
+    }, true);
+  })();
+
+  closeCustomMenusWhenSettingsOpens();
+
+  player.on('ready', () => {
+    try {
+      if (!noSkip && player.provider !== 'youtube' && player.media) {
+        player.media.addEventListener("loadedmetadata", () => {
+          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
+        });
+        player.media.addEventListener("play", () => {
+          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
+        });
+      }
+      if (player.provider === 'youtube' && player.embed?.setPlaybackQuality) {
+        player.embed.setPlaybackQuality('hd1440');
+      }
+    } catch (err) {
+      console.warn("Skip init error", err);
+    }
+  });
 }
-function hideCustomLoader() {
-  if (!myLoader) return;
-  myLoader.classList.remove('show');
-}
 
-//   Show Loader When Fetching or Buffering
-player.on('loadstart', showCustomLoader);
-player.on('waiting', showCustomLoader);
-player.on('seeking', showCustomLoader);
+//   Check Provider & Initialize
+if (provider === "hls" && videoElement) {
+  const sourceUrl = decodeURIComponent(video);
 
-//   Hide Loader When Ready or Playing
-player.on('canplay', hideCustomLoader);
-player.on('playing', hideCustomLoader);
-player.on('seeked', hideCustomLoader);
-
-//   Also Hide on Errors  ( Don’t Freeze Loader Forever )
-player.on('error', hideCustomLoader);
-
-//   Safety  :  Show Immediately On Page Load ,  Hide When Metadata is Ready
-showCustomLoader();
-player.on('loadeddata', hideCustomLoader);
-
-//   🎊  Attach Ready Handler Now That Player Exists
-player.on('ready', syncGestureZoneBottomToControls);
-
-//   🎊  Run Once Immediately as a Safety  ( in Case Layout is Already Ready )
-syncGestureZoneBottomToControls();
-
-//   🔥  Robust Toggle For  Elapsed  <->  Remaining  Display When Clicking The Time Area
-(function() {
-  const root = document.querySelector('.plyr');
-  if (!root) return;
-
-  root.addEventListener('click', function (e) {
-    const timeWrap = e.target.closest('.plyr__time');
-    if (!timeWrap) return;
-
-    e.stopPropagation();
-
-    //   Try Plyr's API if Available
-    if (player && typeof player.toggleInvertTime === 'function') {
-      player.toggleInvertTime();
-      return;
-    }
-
-    //   Fallback  :  Maintain Our Own Toggle
-    if (!root._myInvertToggle) {
-      root._myInvertToggle = { enabled: false };
-
-      player.on('timeupdate', () => {
-        const curEl = root.querySelector('.plyr__time--current');
-        if (!curEl) return;
-        if (root._myInvertToggle.enabled) {
-          const dur = Math.floor(player.duration || 0);
-          const cur = Math.floor(player.currentTime || 0);
-          const remaining = Math.max(0, dur - cur);
-          curEl.textContent = '-' + formatTime(remaining);
-        } else {
-          curEl.textContent = formatTime(Math.floor(player.currentTime || 0));
-        }
-      });
-    }
-
-    root._myInvertToggle.enabled = !root._myInvertToggle.enabled;
-  }, true);
-})();
-
-//   ✅  Add This Line After Player Init
-closeCustomMenusWhenSettingsOpens();
-
-//   On Plyr Ready Event ,  Skip Logic Untouched
-player.on('ready', () => {
-  try {
-    //   ✨  Skip 13 Seconds For All  Non - YouTube  Videos ,  UNLESS  " noskip "  &  " skipSeconds "  Flag is SET
-    if (!noSkip && player.provider !== 'youtube' && player.media) {
-      player.media.addEventListener("loadedmetadata", () => {
-        if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
-      });
-      player.media.addEventListener("play", () => {
-        if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
-      });
-    }
+  if (Hls.isSupported()) {
+    const hls = new Hls({ 
+      debug: false,
+      xhrSetup: function (xhr, url) { xhr.setRequestHeader('auth-key', 'romeo123'); }
+    });
     
-    if (player.provider === 'youtube' && player.embed?.setPlaybackQuality) {
-      player.embed.setPlaybackQuality('hd1440');
-    }
-  } catch (err) {
-    console.warn("Skip init error", err);
+    hls.loadSource(sourceUrl);
+    hls.attachMedia(videoElement);
+    
+    window.initialLiveSeekDone = false;
+    hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
+      if (data.details.live && !window.initialLiveSeekDone) {
+        window.initialLiveSeekDone = true;
+        setTimeout(() => { if (hls.liveSyncPosition) videoElement.currentTime = hls.liveSyncPosition; }, 200);
+      }
+    });
+
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      if (data.fatal) {
+        hideCustomLoader(); 
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR: hls.destroy(); break;
+          case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
+          default: hls.destroy(); break;
+        }
+      }
+    });
+
+    //   👇🏻  EXTRACT DYNAMIC QUALITIES HERE  👇🏻
+    hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+      //   Pull Available Resolutions From The Stream
+      const availableQualities = hls.levels.map((l) => l.height);
+      //   Remove Duplicates & Sort Highest To Lowest
+      const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+      uniqueQualities.unshift(0);       //   0 Acts as  " Auto "
+      
+      //   Inject Dynamically Extracted Qualities Into Plyr Setup
+      plyrConfig.quality = {
+        default: 0,
+        options: uniqueQualities,
+        forced: true,
+        onChange: (newQuality) => {
+          if (newQuality === 0) hls.currentLevel = -1;
+          else hls.currentLevel = hls.levels.findIndex(l => l.height === newQuality);
+        }
+      };
+
+      //   Boot Player Only After Qualities Are Mapped
+      const plyrInstance = new Plyr('#player', plyrConfig);
+      initAllPlayerEvents(plyrInstance);
+    });
+
+    window.hls = hls; 
+
+  } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    videoElement.src = sourceUrl;
+    const plyrInstance = new Plyr('#player', plyrConfig);
+    initAllPlayerEvents(plyrInstance);
   }
-});
+} else {
+  //   Immediate Load For  Youtube & HTML5
+  const plyrInstance = new Plyr('#player', plyrConfig);
+  initAllPlayerEvents(plyrInstance);
+}
+
 
 function toggleDarkMode(e) {
   const body = document.getElementById('themeBody');
@@ -1849,7 +1821,7 @@ function injectInlineVolumeSlider() {
     const isOpen = volContainer.style.display === 'flex' && volContainer.classList.contains('menu-show');
 
     if (isOpen) {
-      //   ✅ If open, hide instantly and clear timer
+      //   ✅  If Open ,  Hide Instantly & Clear Timer
       instantHideMenu(volContainer);
       muteBtn.style.background = '';
       if (volumeAutoHideTimeout) {
@@ -1857,28 +1829,28 @@ function injectInlineVolumeSlider() {
         volumeAutoHideTimeout = null;
       }
     } else {
-      //   ✅ Show volume slider
+      //   ✅  Show Volume Slider
       closeAllMenus('inlineVolumeSlider');
       player.muted = false;
       player.volume = 1;
       volumeSlider.value = 1;
       volContainer.style.display = 'flex';
       setTimeout(() => volContainer.classList.add('menu-show'), 10);
-      muteBtn.style.background = '#14b9ff';     //   😍 <== Apply your desired background color here
+      muteBtn.style.background = '#14b9ff';       //   😍  <==  Apply Your Desired Background Color Here
 
-      //   ✅ Clear any existing timer before setting new one
+      //   ✅  Clear Any Existing Timer Before Setting New One
       if (volumeAutoHideTimeout) clearTimeout(volumeAutoHideTimeout);
   
-      //   ✅ Set new auto-hide timer for 8 seconds
+      //   ✅  Set New  Auto - Hide  Timer For 8 Seconds
       volumeAutoHideTimeout = setTimeout(() => {
         instantHideMenu(volContainer);
         muteBtn.style.background = '';
         volumeAutoHideTimeout = null;
-      }, 8000);      //   ⏳ Auto Hides the Volume Slidebar after 8 seconds
+      }, 8000);        //   ⏳  Auto Hides The Volume Slidebar After 8 Seconds
     }
   });
 
-  // Volume slider logic
+  //   Volume Slider Logic
   volumeSlider.addEventListener('input', function(){
     player.volume = this.value;
     player.muted = (Number(this.value) < 0.01);
@@ -1888,7 +1860,7 @@ function injectInlineVolumeSlider() {
     volumeSlider.value = player.volume;
   });
 
-  // Hide slider on outside click
+  //   Hide Slider On Outside Click
   document.addEventListener('click', function(ev){
     if (!volContainer.contains(ev.target) &&
         ev.target !== muteBtn
@@ -1903,8 +1875,8 @@ function injectInlineVolumeSlider() {
   });
 }
 
-// ====== Current Session Card Logic ======
-// ====== Current Session Card Logic (improved) ======
+//   ======  Current Session Card Logic  ======
+//   ======  Current Session Card Logic  ( Improved )  ======
 const sessionStatusDot = document.getElementById("sessionStatusDot");
 const sessionCurrentTime = document.getElementById("sessionCurrentTime");
 const sessionTotalDuration = document.getElementById("sessionTotalDuration");
@@ -1916,20 +1888,20 @@ let lastTick = null;
 let isMetadataLoaded = false;
 let isBufferingOrSeeking = false;
 
-// watchdog helpers (detect "stuck while playing")
+//   Watchdog Helpers ( Detect  " Stuck While Playing " )
 let watchdogIntervalId = null;
 let lastObservedTime = 0;
 let timeStuckSince = null;
-const TIME_STUCK_THRESHOLD_MS = 900; // if time hasn't moved > threshold => treat as buffering
-const WATCHDOG_INTERVAL_MS = 500;    // check every 500ms
+const TIME_STUCK_THRESHOLD_MS = 900;       //   If Time Hasn't Moved  >  Threshold  =>  Treat as Buffering
+const WATCHDOG_INTERVAL_MS = 500;          //   Check Every 500ms
 
-// Format time helper → HH:MM:SS:MS
+//   Format Time Helper → HH:MM:SS:MS
 function formatSessionTime(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const milliseconds = Math.floor(ms % 1000 / 10); // two-digit ms
+  const milliseconds = Math.floor(ms % 1000 / 10);       //   Two - Digit  ms
 
   return [
     hours.toString().padStart(2, "0"),
@@ -1939,25 +1911,25 @@ function formatSessionTime(ms) {
 }
 
 function setSessionDotState(state) {
-  // clear possible classes, then add exactly one
+  //   Clear Possible Classes ,  Then Add Exactly One
   sessionStatusDot.classList.remove("bg-green-600", "bg-red-600", "bg-yellow-900");
   if (state === "playing") sessionStatusDot.classList.add("bg-green-600");
   else if (state === "buffering") sessionStatusDot.classList.add("bg-yellow-900");
   else sessionStatusDot.classList.add("bg-red-600"); // paused/ended
 }
 
-// Start counting watch time
+//   Start Counting Watch Time
 function startSessionTimer() {
   if (sessionTimer) return;
   lastTick = Date.now();
   sessionTimer = setInterval(() => {
     const now = Date.now();
-    // guard against negative diffs
+    //   Guard Against Negative Diffs
     const delta = Math.max(0, now - lastTick);
     watchedMilliseconds += delta;
     lastTick = now;
     sessionCurrentTime.textContent = formatSessionTime(watchedMilliseconds);
-  }, 50); // update every 50ms (same as before)
+  }, 50);      //   Update Every 50ms  ( Same as Before )
 }
 
 function stopSessionTimer() {
@@ -1966,29 +1938,29 @@ function stopSessionTimer() {
   sessionTimer = null;
 }
 
-// Enter buffering/seeking state (stop timer)
+//   Enter  Buffering / Seeking  State  ( Stop Timer )
 function enterBuffering() {
   if (isBufferingOrSeeking) return;
   isBufferingOrSeeking = true;
-  // stop the timer immediately
+  //   Stop The Timer Immediately
   stopSessionTimer();
-  // visually indicate buffering
+  //   Visually Indicate Buffering
   setSessionDotState("buffering");
 }
 
-// Exit buffering/seeking state (resume timer only if actually playing)
+//   Exit  Buffering / Seeking  State  ( Resume Timer Only If Actually Playing )
 function exitBuffering() {
   if (!isBufferingOrSeeking) return;
   isBufferingOrSeeking = false;
-  // restore dot based on paused state
+  //   Restore Dot Based On Paused State
   setSessionDotState(player.paused ? "paused" : "playing");
-  // resume only if actually playing and metadata loaded
+  //   Resume Only if Actually Playing & Metadata Loaded
   if (!player.paused && isMetadataLoaded) {
     startSessionTimer();
   }
 }
 
-// Listen for metadata -> show total duration and allow timer to start when appropriate
+//   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
 player.media?.addEventListener('loadedmetadata', () => {
   isMetadataLoaded = true;
   if (player.duration) {
@@ -2019,7 +1991,7 @@ player.on("ended", () => {
   stopSessionTimer();
 });
 
-//   Buffer / Seeking  Related Events  ( Plyr - level )
+//   Buffer / Seeking  Related Events  ( Plyr - Level )
 player.on("seeking", enterBuffering);
 player.on("waiting", enterBuffering);
 player.on("stalled", enterBuffering);
@@ -2031,8 +2003,8 @@ player.on("canplaythrough", exitBuffering);
 
 //   Seeked is Sometimes Emitted Before  Playing / Canplay  ;  Try To Recover Gracefully
 player.on("seeked", () => {
-  //   If It Becomes Playing Shortly After Seek ,  exitBuffering Will Be Called By  ' playing' .
-  //   But in Some Cases The Player is Already Playing After Seek ;  Handle That.
+  //   If It Becomes Playing Shortly After Seek ,  exitBuffering Will Be Called By  ' Playing ' .
+  //   But in Some Cases The Player is Already Playing After Seek ;  Handle That .
   setTimeout(() => {
     if (!player.paused) exitBuffering();
   }, 250);
@@ -2155,6 +2127,7 @@ watchdogIntervalId = setInterval(() => {
     checkLiveDrift(cur, dur);
   }
 
+
   function checkLiveDrift(cur, dur) {
     const liveIndicator = document.getElementById('liveIndicator');
     const liveIndicatorText = document.getElementById('liveIndicatorText');
@@ -2165,7 +2138,6 @@ watchdogIntervalId = setInterval(() => {
     let isLive = false;
     let liveEdgeTime = dur;
 
-    //   Detect If Heroku is Serving a Live Sliding Window Via  hls.js
     if (window.hls && window.hls.levels && window.hls.levels.length > 0) {
         const currentLevel = window.hls.levels[window.hls.currentLevel];
         if (currentLevel && currentLevel.details && currentLevel.details.live) {
@@ -2173,33 +2145,33 @@ watchdogIntervalId = setInterval(() => {
             liveEdgeTime = window.hls.liveSyncPosition || dur;
         }
     } else if (dur === Infinity || (window.hls && window.hls.currentLevel === -1 && window.hls.url)) {
-        //   Fallback Live Check For Raw Streams
         isLive = true;
     }
 
+    //   Always Ensure The Badge is Visible Now
+    liveIndicator.style.display = 'flex';
+
+    let showAsLive = false;
     if (isLive) {
-        liveIndicator.style.display = 'flex';
-        
-        //   Calculate Drift  ( How Far Behind The Live Edge The User is )
         const secondsBehind = liveEdgeTime - cur;
-        
-        //   If They Fall More Than 6 Seconds Behind The Server  ( Due To Buffering or Dragging Backward )
-        if (secondsBehind > 6) { 
-            liveIndicatorText.textContent = "NOT LIVE";
-            liveIndicatorText.style.color = "#ef4444"; // Red
-            liveIndicatorDot.style.backgroundColor = "#ef4444";
-            liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
-        } else {
-            liveIndicatorText.textContent = "LIVE";
-            liveIndicatorText.style.color = "#16a34a"; // Green
-            liveIndicatorDot.style.backgroundColor = "#16a34a";
-            liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+        if (secondsBehind <= 6) { 
+            showAsLive = true;
         }
+    }
+
+    if (showAsLive) {
+        liveIndicatorText.textContent = "LIVE";
+        liveIndicatorText.style.color = "#16a34a"; // Green
+        liveIndicatorDot.style.backgroundColor = "#16a34a";
+        liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
     } else {
-        //   Completely Hidden On Standard  VODs / MP4s
-        liveIndicator.style.display = 'none';
+        liveIndicatorText.textContent = "NOT LIVE";
+        liveIndicatorText.style.color = "#ef4444"; // Red
+        liveIndicatorDot.style.backgroundColor = "#ef4444";
+        liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
     }
   }
+
 
   //   Make The Live Indicator Button Clickable To Forcefully Jump Back To Live Edge
   const liveInd = document.getElementById('liveIndicator');
