@@ -1219,8 +1219,13 @@ if (provider === "hls" && videoElement) {
   console.log("Attempting to load HLS URL:", sourceUrl);
 
   if (Hls.isSupported()) {
-    // Enable debug mode to feed logs into our mobile console
-    const hls = new Hls({ debug: false }); // Set to true if you want extreme detail
+    const hls = new Hls({ 
+      debug: true, // Keep debug on to monitor the header injection
+      xhrSetup: function (xhr, url) {
+        // Inject the exact auth key Heroku demands before sending the request
+        xhr.setRequestHeader('auth-key', 'romeo123');
+      }
+    });
     
     hls.loadSource(sourceUrl);
     hls.attachMedia(videoElement);
