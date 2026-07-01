@@ -1,0 +1,2560 @@
+<!-- Replace your current code with this --> 
+<!-- [Scroll down in code to see fixes in attachGestureControls()] --> 
+<!-- Full HTML code starts below -->  
+<!DOCTYPE html>
+<html lang="en">  
+<head>  
+  <meta charset="UTF-8" />  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <meta name="theme-color" content="#2F0909" />  
+  <title>AaRAv OffiCiaL</title>  
+  <script src="https://cdn.tailwindcss.com"></script>  
+  <script>tailwind.config = { darkMode: 'class' }</script>  
+  
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />  
+  
+  <style>  
+    html, body {  
+      margin: 0;  
+      padding: 0;  
+      overscroll-behavior: none;  
+    }  
+
+    /*  👇🏻  Css For Fixed Another Background :
+    
+    body {
+      background-image: url('/player-bg-mobile1.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+    @media (min-width: 640px) {
+      body {
+        background-image: url('/player-bg-desktop.jpg');
+      }
+    }
+    
+    */
+    
+    /*  video, iframe {  
+    touch-action: manipulation;  
+    }  
+    #playerWrapper {  
+      position: relative;  
+      user-select: none;  */
+
+
+    /*   👇🏻  YOUTUBE UI FIX  :  Places an Invisible Shield Over The YouTube iframe To Prevent Taps From Triggering Native Suggestions   */
+    .plyr__video-wrapper iframe {
+      pointer-events: none !important;
+    }
+
+
+    .neon-download {
+      border: 1px solid #6b21a8;
+      box-shadow: 0 0 8px #6b21a8;
+      transition: transform 0.3s ease;
+    }
+    .neon-download:hover {
+      transform: translateY(-2px);
+      background-color: #6b21a8;
+      color: white;
+    }
+
+    /*   ✅ Keep video always in 16:9 ratio without breaking layout  */
+    #playerWrapper {
+      aspect-ratio: 16 / 9;
+      background: black;      /*   Placeholder before metadata loads  */
+      position: relative;
+      user-select: none;
+    }
+
+    #playerWrapper video,
+    #playerWrapper iframe {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;      /*   keeps full video visible  */
+      background: black;
+      display: block;
+      touch-action: manipulation;
+    }
+
+    /*   ✅ Force Plyr wrapper itself to always stay 16:9   */
+    .plyr {
+      aspect-ratio: 16 / 9;
+      background: black;
+      position: relative;
+    }
+
+    /*   🎊 Apply lift to the visible white card (so video + background move together)   */
+    #playerCard {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+      transition: transform 0.6s ease, box-shadow: 0.9s ease;
+      cursor: pointer;
+    }
+
+    /*  🔹 Lift on hover  */
+    #playerCard:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
+    }
+
+    /*  🔹 Lift more on click (active)  */
+    /*  #playerCard:active {
+      transform: translateY(-9px) scale(1.02);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.8);
+    }  */
+    
+    .toast {  
+      position: absolute;  
+      top: 50%;  
+      left: 50%;  
+      transform: translate(-50%, -50%);  
+      background: rgba(0, 0, 0, 0.8);  
+      color: white;  
+      padding: 0.5rem 1rem;  
+      border-radius: 0.5rem;  
+      font-size: 1rem;  
+      z-index: 60;  
+      opacity: 0;  
+      transition: opacity 0.3s ease;  
+      pointer-events: none;  
+    }  
+    .toast.show {  
+      opacity: 1;  
+    } 
+
+    /* ===== Player-only Loader (scoped & small) =====
+    Paste/append this inside your existing <style> (near other #playerLoader rules)
+    */
+    #playerLoader {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: black;                 /* black background inside player box */
+      z-index: 11000;                    /* above controls */
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 180ms ease, visibility 180ms;
+      pointer-events: none;
+    }
+
+    /* visible state */
+    #playerLoader.show {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* loader container — no scaling, just flex column */
+    #playerLoader .loader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    /* SVG sizing inside loader — base size for mobile */
+    #playerLoader .loading-svg {
+      width: 75px;   /* adjust spinner size on mobile */
+      height: 75px;
+      display: block;
+      margin-top: 15px;
+    }
+
+    /* Loader text style (small on mobile) */
+    #playerLoader .loader-text {
+      font-family: 'Roboto', sans-serif;
+      font-weight: 650;
+      font-size: 0.7rem;
+      letter-spacing: .3px;
+      background: linear-gradient(93deg, #c40a4e 0%, #410675 90%);  /* other colour  */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: pulseText 2s ease-in-out infinite;
+      margin-top: 5px;    /* gap between spinner and text */
+      margin-left: 9px;
+    }
+    
+    /* --- Responsive adjustments for larger screens --- */
+    @media (min-width: 520px) {
+      #playerLoader .loading-svg {
+        width: 125px;    /* larger spinner on desktop */
+        height: 125px;
+        margin-top: 35px;
+      }
+      #playerLoader .loader-text {
+        font-weight: 700;
+        font-size: 1.5rem; /* bigger text on desktop */
+        margin-top: 25px; /* bigger gap between spinner and text */
+        margin-left: 12px;
+      }
+    }
+
+    /* --- SVG dot/arc styling (scoped) --- */
+    #playerLoader .dot {
+      /* ensure dots use the loader gradient defined inside the SVG */
+      fill: url(#arc-gradient-player);
+      opacity: 1;
+    }
+
+    #playerLoader .arc-line {
+      stroke: url(#arc-gradient-player);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      fill: none;
+    }
+
+    /* Rotation animations (scoped) */
+    #playerLoader .outer-dots { animation: rotate-acw 3.5s linear infinite; transform-origin: 60px 60px; }
+    #playerLoader .arc2 { animation: rotate-cw 2.7s linear infinite; transform-origin: 60px 60px; }
+    #playerLoader .arc3 { animation: rotate-acw 2.5s linear infinite; transform-origin: 60px 60px; }
+    #playerLoader .arc4 { animation: rotate-cw 2.3s linear infinite; transform-origin: 60px 60px; }
+
+    @keyframes rotate-cw { 100% { transform: rotate(360deg); } }
+    @keyframes rotate-acw { 100% { transform: rotate(-360deg); } }
+
+    @keyframes pulseText {
+      0%,100% { filter: brightness(100%); transform: translateY(0); }
+      50% { filter: brightness(80%); transform: translateY(-3px); }
+    }
+
+    /* When loader is active, hide plyr controls visually (you already have something similar) */
+    .plyr.loading .plyr__controls { visibility: hidden !important; pointer-events: none !important; }
+    .plyr.loading #customSeekControls { visibility: hidden !important; pointer-events: none !important; }
+    
+    /* --- Gesture zones: reserve space for Plyr controls and sit BELOW them --- */
+    .gesture-zone {
+      position: absolute;
+      top: 0;
+      bottom: 56px;              /* reserve default space for controls (will be corrected by JS) */
+      width: 35%;
+      z-index: 2;                /* must be lower than controls' z-index so clicks reach the controls */
+      pointer-events: auto;
+    }
+    
+    /* left / right placement unchanged */
+    #gestureLeft { left: 0; right: auto; }
+    #gestureRight { right: 0; left: auto; }
+
+    /* Force Plyr controls to render above gesture zones */
+    .plyr__controls {
+      position: relative;
+      z-index: 9999;             /* very high so it sits above gesture zones and other overlays */
+    }
+
+    /* Hide default volume slider in control bar */  
+    .plyr__controls [data-plyr="volume"] {  
+      display: none !important;  
+    }  
+    /* Hide default rewind/fast-forward buttons */  
+    .plyr__controls [data-plyr="rewind"],  
+    .plyr__controls [data-plyr="fast-forward"] {  
+      display: none !important;  
+    }  
+    
+    /*  Custom seek controls container  */  
+    #customSeekControls {  
+      display: flex;  
+      justify-content: center;  
+      align-items: center;  
+      gap: 0;              /*  smaller gap between seek buttons */  
+      margin-left: 0;      /*  remove big extra spacing from mute/settings */  
+      user-select: none;  
+    }  
+    #customSeekControls button {  
+      background: rgba(0,0,0,0.6);  
+      border: none;  
+      color: white;  
+      font-size: 0.8rem;  
+      margin: 0 !important;  /*  reset any auto margins */  
+      padding: 0 !important; /*  tighter inside spacing */  
+      border-radius: 3px;  
+      cursor: pointer;  
+      transition: background-color 0.3s;  
+      text-align: center;  
+      display: flex;  
+      align-items: center;  
+      justify-content: center;  
+    }  
+    #customSeekControls button:hover {  
+      background: rgba(255,255,255,0.2);  
+    }  
+    /* --- INTERVAL & VOLUME MENU GLASSMORPHISM --- */  
+    #seekIntervalMenu,  
+    #inlineVolumeSlider {
+      position: absolute;
+      background: rgba(255,255,255,0.85);  
+      color: #222;  
+      backdrop-filter: none;  
+      -webkit-backdrop-filter: none;  
+      border-radius: 8px;  
+      box-shadow: 0 8px 32px rgba(60,60,60,0.18);    
+      border: 1px solid rgba(200,200,200,0.14);  
+      padding: 10px 10px;  
+      flex-direction: column;    /*  stack items vertically */  
+      user-select: none;  
+      max-width: 180px;  
+      z-index: 10100;  
+      overflow: visible !important;  
+    }
+
+    /* seekIntervalMenu: positioned relative to .plyr__controls (JS will align it above the button) */
+    #seekIntervalMenu {
+      position: absolute;                /* absolute w.r.t .plyr__controls (which is already position:relative) */
+      left: 0;                           /* JS will set left to align over the interval button */
+      transform-origin: top center;
+      min-width: 100px;
+      max-width: 180px;
+      width: auto;
+      z-index: 10100;
+      padding: 8px 6px;
+      display: none;                     /* hidden by default, JS toggles display and menu-show class */
+    }
+
+    #inlineVolumeSlider {
+      bottom: 42.2px !important;    /*  🔥 Same Vertical Distance from button as Plyr Default  */  
+      right: 62px !important;       /*  🔥 move leftwards to align above volume/mute Button    */  
+      display: flex;             /*  ✅ make it flex */  
+    }  
+  
+    /*   Button styles to match Plyr look  */  
+    #seekIntervalMenu button {
+      background: transparent;  
+      border: none;  
+      color: #4a5568;  
+      text-align: center;  
+      padding: 6px 10px;  
+      font-family: inherit !important;  
+      font-size: 0.8rem !important;  
+      border-radius: 7px;
+      margin: 0 !important;                 /*   ✅ kills the inline margin of Js   */
+      gap: 8px !important;                  /*   ✅ add vertical gap between options */  
+      transform: scale(0.7) !important;
+      min-width: 90px !important;
+      font-weight: 600;  
+      transition: background-color 0.21s, color 0.17s;  
+      cursor: pointer;  
+      outline: none;  
+    }
+  
+    #seekIntervalMenu button:hover,  
+    #seekIntervalMenu button.selected {  
+      background: #14b9ff;
+      color: white;
+    }
+    
+    /* Vertical volume slider glassmorphism updated */  
+    #inlineVolumeSlider {  
+      display: none;  
+      flex-direction: column;  
+      align-items: center;      /*   Centers Horizontally      */  
+      justify-content: center;  
+      padding: 10px 0;          /*   Balanced Padding          */  
+      width: 70px;              /*   Volume Slider Menu Width  */  
+    }  
+
+    /*  --- Controls sizing (smaller buttons & less gap) --- */  
+    /*   Make buttons smaller   */  
+    .plyr__controls button {  
+      transform: scale(0.7);  
+      margin: 0 !important;   /*  reduce horizontal gap  */  
+      padding: 2 !important;      /*  shrink padding inside buttons  */  
+    }  
+
+    /*  Reduce overall spacing between controls  */  
+    .plyr__controls {  
+      gap: 0 !important;        /*  default is larger; make it tighter  */  
+      flex-wrap: nowrap !important; /*  force single row  */  
+    }  
+
+    /*   Remove the thin white default background track  */  
+    #inlineVolumeSlider input[type=range] {  
+      appearance: slider-vertical;  
+      -webkit-appearance: slider-vertical;  
+      height: 105px;  
+      width: 18px;  
+      border-radius: 9px;  
+      background: transparent;  
+      margin: 0 auto; /* center horizontally */  
+      outline: none;  
+    }  
+
+    /*  Remove default track styles for WebKit browsers (Chrome, Edge, Safari)  */  
+    #inlineVolumeSlider input[type=range]::-webkit-slider-runnable-track {  
+      background: transparent !important;  
+      border: none !important;  
+    }  
+
+    /*  Remove default track styles for Firefox  */  
+    #inlineVolumeSlider input[type=range]::-moz-range-track {  
+      background: transparent !important;  
+      border: none !important;  
+    }  
+
+    /*  --- FONT WEIGHT FOR SETTINGS MENU & SUBMENU ---  */  
+
+    /*  Top-level settings menu items (e.g. Speed, Quality, Captions)  */  
+    .plyr__menu__container .plyr__control {  
+      font-weight: 600 !important;   /* make menu labels bolder  */
+    }  
+
+    /*  Submenu options (e.g. 1x, 1.25x, 1.5x, up to 3x)  */  
+    .plyr__menu__container [role="menuitemradio"] {  
+      font-weight: 500;   /* slightly less bold for submenu items  */  
+    }
+    
+    /* ---- Only these for submenu! ---- */
+    .plyr__menu__container {
+      overflow: visible !important;
+    }
+    .plyr__menu__container .plyr__menu__list {
+      max-height: 48vh;
+      overflow-y: auto !important;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /*   🔥 Common arrow style for interval + volume menus  */  
+    #seekIntervalMenu::after,  
+    #inlineVolumeSlider::after {  
+      content: "";  
+      position: absolute;  
+      top: calc(100% + 1px);  
+      width: 0;  
+      height: 0;  
+      border-left: 4.5px solid transparent;  
+      border-right: 4.5px solid transparent;  
+      border-top: 4.5px solid rgba(255, 255, 255, 0.95);  
+      filter: drop-shadow(0 1px 1px rgba(60, 60, 60, 0.25));  
+    }  
+
+    /* Arrow should align above INTERVAL button */  
+    #seekIntervalMenu::after {  
+      left: auto;
+      top: calc(100% + 1.1px) !important;
+      right: 18.2px;     /* push it to align over interval button */  
+      transform: translateX(50%);  
+    }  
+
+    /* Arrow should align above MUTE/VOLUME button */  
+    #inlineVolumeSlider::after {  
+      left: auto;  
+      right: 42px;    /* adjust this to fine-tune above mute button */  
+      transform: none;  
+    }
+
+    /* ---   Plyr-style slide - Up animation for menus --- */
+    .menu-animate {
+      opacity: 0;
+      transform: translateY(15px) scale(0.98);
+      transition: opacity 0.21s cubic-bezier(.24,.16,.14,.98), transform 0.21s cubic-bezier(.24,.16,.14,.98);
+      will-change: opacity, transform;
+      pointer-events: none;
+    }
+    .menu-show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    /*   🔥 Current Session Card Style   */
+    /* ---------- Session card (replace previous block) ---------- */
+    /*   🔥 Current Session Card Style (REPLACEMENT)
+         This is a small, variable-driven style set for the session card.
+         Edit the variables at the top to change sizes, gaps, weights, colours.
+         Two breakpoints are provided: mobile (default) and desktop (>=768px).
+    */
+
+    /* ---------- primary variables (edit these only) ---------- */
+    .session-card {
+      /* layout / spacing variables (easy single-place tuning) */
+      --session-padding: 17px 13px 18px 13px;        /* top/bottom and left/right */
+      --session-gap: 26px;                     /* gap between header and row / columns */
+      --session-dot-size: 8px;                 /* diameter of the status dot */
+      --session-title-size: 14.5px;            /* "Current Session" */
+      --session-time-size: 12px;               /* time numbers (00:00:00) */
+      --session-label-size: 13px;              /* Watched Video / Total Duration */
+
+      /* font-weight variables */
+      --session-title-weight: 700;
+      --session-time-weight: 700;
+      --session-label-weight: 650;
+
+      /* colours (change to match theme) */
+      --session-foreground: #0f1724;       /* main text */
+      --session-muted: #222;               /* label / muted text */
+      --session-time: #2e2e2e;             /* time text */
+      --session-dot-color: #ef4444;        /* red dot (playing) */
+
+      /* visual (background) - keep similar floating glass style as before */
+      background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0.62),
+        rgba(173, 216, 230, 0.38)
+      );
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+
+      border-radius: 8px;
+      padding: var(--session-padding);
+      box-sizing: border-box;
+
+      /*   ✅ Floating look  */
+      box-shadow: 0 5px 7px rgba(0, 0, 0, 0.1);
+      /*  ( Currently Disabled ) transform: translateY(-3px);  */
+      cursor: pointer;
+
+      /* ✅ Smooth + spring animation */
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.6s ease;
+      
+    }
+
+     /* ✅ On hover: slight lift */
+     .session-card:hover {
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+        transform: translateY(-6px);
+     }
+
+    /* ✅ On click: lift more (spring will animate it back) */
+    .session-card:active {
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+      transform: translateY(-9px) scale(1.02);
+    }
+    
+    /* ---------- header (dot + title) ---------- */
+    .session-header {
+      display: flex;
+      align-items: center;
+      gap: 15px; /* space between dot and title */
+      margin-bottom: var(--session-gap);
+    }
+
+    /* status dot */
+    .session-dot {
+      width: var(--session-dot-size);
+      height: var(--session-dot-size);
+      border-radius: 50%;
+      background-color: var(--session-dot-color);
+      flex-shrink: 0;
+      display: inline-block;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+
+    /* title */
+    .session-title {
+      font-size: var(--session-title-size);
+      font-weight: var(--session-title-weight);
+      color: var(--session-foreground);
+      line-height: 1;
+      /* if you want uppercase: text-transform: uppercase; */
+    }
+
+    /* ---------- main row (two columns) ---------- */
+    .session-row {
+      display: flex;
+      gap: var(--session-gap);
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+        
+    /* each column (centered on mobile) */
+    .session-col {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;   /* mobile: centered */
+      gap: 2px;
+    }    
+
+    /* time number */
+    .session-time {
+      font-size: var(--session-time-size);
+      font-weight: var(--session-time-weight);
+      color: var(--session-time);
+      letter-spacing: 0.2px;
+      margin-bottom: -3px;
+    }
+
+    /* label under the time */
+    .session-label {
+      font-size: var(--session-label-size);
+      font-weight: var(--session-label-weight);
+      color: var(--session-muted);
+      opacity: 0.95;
+      letter-spacing: 0.2px;
+    }
+
+    /* ========== Desktop overrides ========== 
+       Tweak these values to change desktop sizes/gap independently.
+       To change behaviour for larger screens, edit the variables below.
+    */
+    @media (min-width: 520px) {
+      .session-card {
+        --session-padding: 20px 22px 22px 22px;
+        --session-gap: 30px;
+        --session-dot-size: 9px;
+        --session-title-size: 19px;
+        --session-time-size: 15.4px;
+        --session-label-size: 15.8px;
+
+        /* font-weight variables */
+        --session-title-weight: 800;
+        --session-time-weight: 700;
+        --session-label-weight: 700;
+      }
+    
+      /* on desktop, align text to left inside each column for a horizontal layout */
+      .session-col {
+        align-items: center;
+        gap: 2px !important;            /* desktop gap between time and label */
+      }
+
+      .session-time {
+        margin-bottom: -6px;
+      }
+    }
+
+    /* ========== Utility small tweak if you prefer left side times on desktop too ==========
+       (Uncomment if you want the times centered on desktop as well)
+    */
+    /*
+    @media (min-width: 768px) {
+      .session-col { align-items: flex-start; }
+    }
+    */
+
+    /* ---------- Progress Cards & Water Wave Circle (NEW) ---------- */
+    /* sensible global box-sizing so % widths behave predictably */
+    
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+    
+    .card-row {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: stretch;
+      gap: 18px;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      margin-top: 0px;
+      margin-bottom: 25px !important;
+      box-sizing: border-box;
+    }
+
+    .info-card {
+      background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0.62),
+        rgba(173, 216, 230, 0.38)
+      );
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      padding: 25px 10px 16px 10px;
+      flex: 1 1 0px;
+      min-width: 0;                         /*   Allows Cards to Shrink on Small Screens  */
+      max-width: 230px;                     /*   Adjust as Needed  */
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+  
+    /*   ✅ Floating look  */
+      box-shadow: 0 5px 7px rgba(0, 0, 0, 0.1);
+      /*  ( Currently Disabled ) transform: translateY(-0.1px);  */
+      cursor: pointer;
+
+    /*   ✅ Smooth + spring animation  */
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.6s ease;
+    }
+    /*   ✅ On hover: slight lift  */
+    .info-card:hover {
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+      transform: translateY(-5px);
+    }
+
+    /*   ✅ On click: lift more (spring will animate it back)  */
+    .info-card:active {
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+      transform: translateY(-9px) scale(1.02);
+    }
+
+    .info-desc {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #222;
+      margin: 0;
+    }
+
+    .progress-track {
+      width: 92%;
+      margin: 15px auto 7px auto;
+      height: 7.5px;
+      background: #f1f6fa;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important;
+      transform: translateY(-2px);
+      cursor: pointer;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;                               /*   Set dynamically by JS  */
+      border-radius: 4px;
+      background: linear-gradient(90deg, #9c0892, #2d0a5e);
+      transition: width 180ms linear;
+    }
+    .progress-fill.remaining {
+      background: linear-gradient(90deg,#700987,#874609);
+    }
+
+    .percent-text {
+      font-size: 0.8rem;
+      color: #222;
+      font-weight: 600;
+      margin: 0;
+      white-space: pre-wrap;                    /*   Preserves White-Spaces and Still Allows Wrapping if Needed  (Can Also Use "  '0%\u00A0\u00A0Watched';  " in JS)  */
+    }
+
+    /* Preserve spaces exactly as inserted (keeps your original &nbsp; and regular spaces) */
+
+    .wave-circle {
+      width: 60px;
+      height: 60px;                             /*   Smaller Circle than Before Which i Created on Different Page  */
+      margin: 0 auto 15px;                      /*   <-- Center on Mobile: auto left/right, keep bottom gap  */
+      border-radius: 50%;                       /*   Make it Circular   */
+      overflow: hidden;                         /*   Clip Waves inside  */
+      position: relative;
+      background: #fff;                         /*   Base Background    */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);    /*   Same as icon-gradient  */
+      transform: translateY(-2px);
+    }
+    .wave-circle svg {
+      width: 100%; height: 100%;
+      display: block;
+    }
+
+    /*   ====== FIX : Make the Right-hand Content fill the Card (so % widths Compute Correctly) ======  */
+    /*   Place this Just AFTER Your .wave-circle Rules and BEFORE the @media(...) Block  */
+
+    .info-content {
+      width: 100%;                     /*   KEY: force the content container to fill the card  */
+      box-sizing: border-box;          /*   Ensure paddings don't change percentage math  */
+      display: flex;
+      flex-direction: column;
+      align-items: center;             /*   Preserve mobile centering inside the right-area  */
+      justify-content: center;
+      gap: 0;                        /*   Remove gap: we'll use explicit margins  */
+      padding: 0;                      /*   Keep layout predictable  */
+      margin: 0;
+    }
+
+    /*   😍🔥 Desktop: Water-Wave Cirle : left, Content : Right, Stacked Vertically */
+    @media (min-width: 520px) {
+      .card-row {
+        max-width: 56rem;                /*   Matches Tailwind max-w-4xl */
+        gap: 18px;
+        justify-content: space-between;
+        flex-wrap: nowrap;               /*   Two Cards Side-by-Side  */
+        padding: 0;
+      }
+
+      .info-card {
+        flex-direction: row;
+        align-items: stretch;   /*   Keep the Container Stretched to allow Right Area to fill */
+        text-align: left;
+        padding: 20px 20px;
+        min-height: 84px;
+        box-sizing: border-box;
+        /*   ✅ Each Card Should fill approx half the Card-Row (2 Columns)  */
+        max-width: calc(50% - 13px);    /*   Two Cards per Row, Minus gap   */
+      }
+
+      /*   🎊 Wave circle: keep horizontal spacing and also vertically center it in the row  */
+      .info-card .wave-circle {
+        margin-bottom: 0;
+        margin-left: 20px;
+        margin-right: 20px;
+        flex: 0 0 60px;           /*   Keep the circle fixed size on desktop  */
+        width: 60px;
+        height: 60px;
+        align-self: center;       /*   <-- CRITICAL: vertically center the circle in the row  */
+      }
+
+      /*   🔥 Ensure right-side area takes full remaining width and center its stack  */
+      .info-card .info-content {
+        flex: 1 1 auto;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;   /*   Center vertically inside Remaining Area      */
+        align-items: center;       /*   Center horizontally inside Remaining Area    */
+        gap: 0;                    /*   All items will Adjustable for their Own Gap as per need   */
+        min-width: 0;
+      }
+
+       /*   --- Desktop spacing:  Can Adjust these values as i like  --- */
+      .info-card .info-desc {
+        font-size: 1rem;
+        color: #222;
+        font-weight: 800;
+        margin: 0 auto 19px;        /*   Title -> Progress gap on desktop   */
+      }
+
+      .info-card .progress-track {
+        width: 80%;                 /*   Centered Relative to remaining area   */
+        margin: 0 auto 10px;        /*   Progress -> Percent gap   */
+      }
+
+      .info-card .percent-text {
+        font-size: 0.9rem;
+        color: #222;
+        font-weight: 700;
+        margin: 0;
+      }
+    }
+    
+    /*  .icon-gradient {
+      width: 40px; height: 40px;
+      border-radius: 5px !important;
+      margin-bottom: 15px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #2563eb 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* ✅ Floating look */
+      /*box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      transform: translateY(-2px);
+      cursor: pointer;
+    }  */
+
+    /*   Ripple Animation For Theme Toggle   */
+    .theme-transition { 
+      position: relative;  /* keep if you use it elsewhere, not required for ripple */
+    }
+
+    .theme-ripple { 
+      overflow: hidden;    /* you can keep or remove, not critical once we use fixed */
+    }
+
+    .theme-ripple::before {
+      content: "";
+      position: fixed;  /* ✅ was absolute, use fixed so it floats above layout */
+      top: var(--ripple-y);
+      left: var(--ripple-x);
+      width: 0;
+      height: 0;
+      transform: translate(-50%, -50%);
+      background: currentColor;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: ripple-expand 1.2s ease-out forwards;
+      z-index: 9999;  /* ✅ higher than header, but won’t push it */
+    }
+
+    @keyframes ripple-expand {
+      to {
+        width: 200vmax;
+        height: 200vmax;
+        opacity: 0;
+      }
+    }
+
+  </style>
+
+  <!-- ✅ Firebase SDKs (App + Auth + Firestore) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="/auth-check.js" defer></script>
+</head>
+<body id="themeBody" class="theme-transition bg-white text-black dark:bg-gray-25 dark:text-black text-sm sm:text-base md:text-lg min-h-screen flex flex-col">
+<!--  👆🏻 Can , Replace With this for another background :  
+  <body id="themeBody"
+  class="theme-transition
+    bg-[url('https://aarav-official-study-hub.vercel.app/player-bg-mobile1.jpg')]
+    sm:bg-[url('https://aarav-official-study-hub.vercel.app/player-bg-desktop.jpg')]
+    bg-cover bg-center text-black dark:text-black text-sm sm:text-base md:text-lg min-h-screen flex flex-col">  -->
+  
+<!-- Header -->
+<header class="pt-3 mb-2 text-center">
+   
+    <h1 class="text-lg sm:text-xl md:text-2xl font-bold">AaRAv OffiCiaL</h1>
+  
+    <div class="px-4 pb-1 flex justify-between items-center mt-4 mb-4">
+      
+      <!-- Back btn styled like your neon buttons -->
+      <button onclick="history.back()" class="neon-download w-20 py-1 rounded-full text-black text-xs font-semibold">⬅ Back</button>
+      
+      <!-- Theme toggle styled same -->
+      <button onclick="toggleDarkMode(event)" id="themeToggle"
+        class="neon-download w-20 py-1 rounded-full text-black text-xs font-semibold">🌙</button>
+  
+    </div>
+  
+</header>
+
+<!-- Video title -->
+<div class="text-center px-4 mb-3">
+  <h2 id="videoTitle" class="bg-gradient-to-r from-purple-600 to-blue-700 bg-clip-text text-transparent text-xs sm:text-sm md:text-base font-semibold text-center"></h2>
+</div>
+
+<!-- Greeting -->
+<div class="flex flex-col items-center mb-5">
+  <img src="feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
+  <h2 class="bg-gradient-to-r from-pink-800 to-blue-900 bg-clip-text text-transparent text-xl sm:text-2xl md:text-3xl font-bold mt-[-1]">... !!   राधे राधे   !! ...</h2>
+</div>
+
+<!-- Player -->
+<div class="w-full max-w-4xl mx-auto px-4 mb-5">
+  <div id="playerCard" class="bg-white dark:bg-gray-800 transition duration-300 ease-in-out overflow-visible" style="aspect-ratio: 16/9;">
+    <div id="playerWrapper" class="relative group w-full h-full">
+      <div class="toast" id="toast">Toast</div>
+      <!-- Video and gesture zones injected by JS -->
+        <!-- Player-only loader (insert after #toast) -->
+  <div id="playerLoader" aria-hidden="true">
+    <div class="loader-container">
+      <!-- scaled SVG (uses unique gradient id "arc-gradient-player") -->
+      <svg class="loading-svg" viewBox="0 0 120 120" aria-hidden="true">
+        <defs>
+          <linearGradient id="arc-gradient-player" x1="0%" y1="0%" x2="100%" y2="120%">
+            <stop offset="0%" stop-color="#c40a4e"/>
+            <stop offset="72%" stop-color="#410675"/>
+          </linearGradient>
+        </defs>
+
+        <g class="outer-dots">
+          <circle class="dot" r="4" cx="91" cy="60">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.0s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.0s"/>
+          </circle>
+          <circle class="dot" r="3.5" cx="87.97" cy="76.17">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.15s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.15s"/>
+          </circle>
+          <circle class="dot" r="3" cx="77.94" cy="87.97">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.3s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.3s"/>
+          </circle>
+          <circle class="dot" r="2.7" cx="60" cy="91">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.45s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.45s"/>
+          </circle>
+          <circle class="dot" r="3" cx="42.06" cy="87.97">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.6s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.6s"/>
+          </circle>
+          <circle class="dot" r="3.5" cx="32.03" cy="76.17">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.75s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.75s"/>
+          </circle>
+          <circle class="dot" r="4" cx="29" cy="60">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="0.9s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="0.9s"/>
+          </circle>
+          <circle class="dot" r="3.5" cx="32.03" cy="43.83">
+            <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" begin="1.05s"/>
+            <animate attributeName="r" values="2;4;2" dur="1.2s" repeatCount="indefinite" begin="1.05s"/>
+          </circle>
+        </g>
+
+        <!-- arcs (kept compact) -->
+        <g class="arc2">
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,83 A23,23 0 0 1 37,60" />
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,37 A23,23 0 0 1 83,60" />
+        </g>
+
+        <g class="arc3">
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,80 A20,20 0 0 1 40,60" />
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,40 A20,20 0 0 1 80,60" />
+        </g>
+
+        <g class="arc4">
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,68 A8,8 0 0 1 52,60" />
+          <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,52 A8,8 0 0 1 68,60" />
+        </g>
+      </svg>
+
+      <div class="loader-text">Loading Premium Experience .....</div>
+    </div>
+  </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ---------- Progress Cards & Water Wave Circle (FIXED) ---------- -->
+ <div class="card-row w-full max-w-4xl mx-auto px-4">
+    <!-- Watched Card -->
+    <div class="info-card">
+      <div class="wave-circle" id="watchedWave"></div>    <!--   In Left card   -->
+
+      <div class="info-content">
+        <div class="info-desc">Timeline</div>
+
+        <div class="progress-track">
+          <div id="leftProgressFill" class="progress-fill" style="width:0%;"></div>
+        </div>
+
+        <div class="percent-text" id="leftPercent">0&nbsp;% &nbsp;&nbsp;&nbsp;Watched</div>
+      </div>
+    </div>
+
+    <!-- Remaining Card -->
+    <div class="info-card">
+      <div class="wave-circle" id="remainingWave"></div>
+
+      <div class="info-content">
+        <div class="info-desc">Timeline</div>
+
+        <div class="progress-track">
+          <div id="rightProgressFill" class="progress-fill remaining" style="width:0%;"></div>
+        </div>
+
+        <div class="percent-text" id="rightPercent">100&nbsp;% &nbsp;&nbsp;&nbsp;Remaining</div>
+        
+        <div id="liveIndicator" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
+          <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
+          <span id="liveIndicatorText">LIVE</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+<!--   ----------  End Progress Cards & Hourglass  ----------   -->
+
+<!--   Current Session Card   -->
+<!--   Current Session Card   -->
+<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[20px]">
+  <!--
+    NOTE: this inner markup is intentionally minimal and semantic.
+    JS expects the elements with IDs:
+      - sessionStatusDot
+      - sessionCurrentTime
+      - sessionTotalDuration
+    Keep those IDs exactly as they are.
+  -->
+
+  <!-- card surface -->
+  <div class="session-card">
+    <!-- header: dot + title -->
+    <!-- removed explicit Tailwind h-3 w-3 to avoid display quirks; size controlled by CSS below -->
+    <div class="session-header">
+      <span id="sessionStatusDot" class="session-dot" aria-hidden="true"></span>
+      <span class="session-title">Current Session</span>
+    </div>
+
+    <!-- main row: two columns (left = current watched, right = total duration) -->
+    <div class="session-row" role="group" aria-label="Session times">
+      <div class="session-col">
+        <!-- exact ID used by JS -->
+        <div id="sessionCurrentTime" class="session-time">00:00:00:00</div>
+        <div class="session-label">Watched Video</div>
+      </div>
+
+      <div class="session-col">
+        <!-- exact ID used by JS -->
+        <div id="sessionTotalDuration" class="session-time">00:00:00:00</div>
+        <div class="session-label">Total Duration</div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- End Current Session Card -->
+  
+<!-- Footer -->
+<div class="text-center">
+  <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
+</div>
+
+<!--   DEBUG  BOX
+<div class="text-center">
+  <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
+</div>
+
+<div class="w-full max-w-4xl mx-auto px-4 mt-5 mb-10 text-left">
+  <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:8px 12px; border-radius: 8px 8px 0 0;">
+    <span style="color:white; font-weight:bold; font-size:14px;">System Debug Logs</span>
+    <button onclick="navigator.clipboard.writeText(document.getElementById('mobile-console').innerText).then(()=>alert('Logs Copied!'))" style="background:#14b9ff; color:white; border:none; padding:4px 10px; border-radius:4px; font-size:12px; font-weight:bold;">Copy Logs</button>
+  </div>
+  <div id="mobile-console" style="background:#000; padding:10px; font-family:monospace; font-size:11px; height:250px; overflow-y:auto; border:1px solid #333; border-radius: 0 0 8px 8px; word-wrap:break-word;">
+    <div style="color:#aaa;">--- WAITING FOR LOGS ---</div>
+  </div>
+</div>
+<script>
+  //   Intercept All Console Logs & Print Them To The Screen
+  const logBox = document.getElementById('mobile-console');
+  function printLog(msg, color) {
+    if(logBox) {
+      logBox.innerHTML += `<div style="color:${color}; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;">${msg}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+  }
+  const origLog = console.log, origErr = console.error, origWarn = console.warn;
+  console.log = function(...args) { origLog(...args); printLog(args.join(' '), '#aaa'); };
+  console.warn = function(...args) { origWarn(...args); printLog('WARN: ' + args.join(' '), '#ffaa00'); };
+  console.error = function(...args) { origErr(...args); printLog('ERROR: ' + args.join(' '), '#ff5555'); };
+  window.onerror = function(msg, url, line) { printLog(`FATAL: ${msg} (Line: ${line})`, '#ff5555'); };
+</script>    --->
+
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const title = params.get("title");
+const video = params.get("video");
+const videoID = params.get("videoID");
+const provider = params.get("provider");
+const noSkip = params.has("noskip");     //   ✅ Force to Not Skip the Video
+const skipSeconds = parseFloat(params.get("skip"));        //   ✅ Flexible Skip Timing for " skipSeconds " using Videos
+const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;      //   ✅ Default = 13.8s Skip
+
+function formatTime(seconds) {
+  seconds = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [
+    h > 0 ? h.toString().padStart(2, '0') : null,
+    m.toString().padStart(2, '0'),
+    s.toString().padStart(2, '0')
+  ].filter(Boolean).join(':');
+}
+
+if (title) {
+  const decoded = decodeURIComponent(title);
+  document.getElementById("videoTitle").textContent = decoded;
+  document.title = decoded;
+}
+
+const wrapper = document.getElementById("playerWrapper");
+
+
+//   Main Player Load & Gesture Zone Injection
+if (provider === "youtube" && videoID) {
+  wrapper.innerHTML += `
+    <div class="relative aspect-video rounded w-full h-full">
+      <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="${videoID}"></div>
+      <div id="gestureLeft" class="gesture-zone"></div>
+      <div id="gestureRight" class="gesture-zone"></div>
+    </div>`;
+
+} else if (provider === "html5" && video) {
+  wrapper.innerHTML += `
+    <div class="relative aspect-video rounded w-full h-full">
+      <video id="player" class="rounded w-full h-full" style="background:black;">
+        <source src="${decodeURIComponent(video)}" type="video/mp4" />
+      </video>
+      <div id="gestureLeft" class="gesture-zone"></div>
+      <div id="gestureRight" class="gesture-zone"></div>
+    </div>`;
+} else if (provider === "hls" && video) {
+  //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
+  //   NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute
+  wrapper.innerHTML += `
+    <div class="relative aspect-video rounded w-full h-full">
+      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline></video>
+      <div id="gestureLeft" class="gesture-zone"></div>
+      <div id="gestureRight" class="gesture-zone"></div>
+    </div>`;
+}
+
+
+//   Ensure Gesture Zones Never Overlap The Controls
+function syncGestureZoneBottomToControls() {
+  const controls = document.querySelector('.plyr__controls');
+  const zones = Array.from(document.querySelectorAll('.gesture-zone'));
+  if (!controls || !zones.length) return;
+  const controlHeight = Math.ceil(controls.getBoundingClientRect().height || 56);
+  zones.forEach(z => {
+    z.style.bottom = `${controlHeight}px`;
+    z.style.height = 'auto'; 
+  });
+}
+
+//   Run Initially & Whenever Layout May Change
+window.addEventListener('resize', syncGestureZoneBottomToControls);
+//   Note  :  player.on  Attached Lower Down After Player Init
+
+//   Run a Couple of Times To Catch Layout Shifts on  Mobile / Slow  Render
+setTimeout(syncGestureZoneBottomToControls, 120);
+setTimeout(syncGestureZoneBottomToControls, 450);
+
+
+//   =========================================================================
+//   ===   HLS.JS  INITIALIZATION  &  DYNAMIC  QUALITY  &  PLAYER  SETUP   ===
+//   =========================================================================
+const videoElement = document.getElementById('player');
+
+const plyrConfig = {
+  controls: [
+    'play-large', 'play', 'progress', 'current-time',
+    'duration', 'mute', 'captions', 'settings', 'fullscreen'
+  ],
+  //   ' quality '  is Placed First So It Appears Above  ' speed '
+  settings: ['quality', 'speed', 'volume'],
+  toggleInvert: true,           
+  speed: {
+    selected: 1,
+    options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
+  },
+  //   👇🏻  YOUTUBE UI FIX  :  Forcing Plyr To Enforce The  Zero - Controls  Policy
+  youtube: { modestbranding: 1, rel: 0, noCookie: true, controls: 0, iv_load_policy: 3, showinfo: 0 }
+};
+
+//   We Wrap All Event Listeners in a Function So They Wait For Dynamic Qualities To Load
+function initAllPlayerEvents(plyrInstance) {
+  window.player = plyrInstance;
+
+  player.on('ready', syncGestureZoneBottomToControls);
+  syncGestureZoneBottomToControls();
+
+  const myLoader = document.getElementById('playerLoader');
+  function showCustomLoader() { if(myLoader) myLoader.classList.add('show'); }
+  function hideCustomLoader() { if(myLoader) myLoader.classList.remove('show'); }
+
+  player.on('loadstart', showCustomLoader);
+  player.on('waiting', showCustomLoader);
+  player.on('seeking', showCustomLoader);
+  
+  //   👇🏻  THE FIX  :  Hide The Loader When The UI is Built So You Can Click Play
+  player.on('ready', hideCustomLoader);
+  player.on('canplay', hideCustomLoader);
+  player.on('playing', hideCustomLoader);
+  player.on('seeked', hideCustomLoader);
+  player.on('error', hideCustomLoader);
+  player.on('loadeddata', hideCustomLoader);
+
+  //   👇🏻  YOUTUBE LOADER FIX  :  Map YouTube's Internal States Directly To Our Custom Loader
+  player.on('statechange', (event) => {
+    //   YouTube State 3  =  Buffering  ( Force Our Custom Loader Over Google's )
+    if (event.detail.code === 3) {
+      showCustomLoader();
+    } 
+    //   YouTube State 1 = Playing, 2 = Paused (Hide our loader)
+    else if (event.detail.code === 1 || event.detail.code === 2) {
+      hideCustomLoader();
+    }
+  });
+
+  //   👇🏻  PLAY CLICK FIX  :  If User Clicks Play ,  Instantly Show Our Spinner Until  ' playing '  Fires
+  player.on('play', () => {
+    if (!player.playing) showCustomLoader();
+  });
+  player.on('pause', hideCustomLoader);      //   Safety Net
+
+
+  //   Only Force The Loader Initially For HLS Streams That  Auto - Buffer
+  if (provider === 'hls') {
+    showCustomLoader();
+  } else {
+    hideCustomLoader();
+  }
+
+  //   Invert Time Toggle
+  (function() {
+    const root = document.querySelector('.plyr');
+    if (!root) return;
+    root.addEventListener('click', function (e) {
+      const timeWrap = e.target.closest('.plyr__time');
+      if (!timeWrap) return;
+      e.stopPropagation();
+      if (player && typeof player.toggleInvertTime === 'function') {
+        player.toggleInvertTime();
+        return;
+      }
+      if (!root._myInvertToggle) {
+        root._myInvertToggle = { enabled: false };
+        player.on('timeupdate', () => {
+          const curEl = root.querySelector('.plyr__time--current');
+          if (!curEl) return;
+          if (root._myInvertToggle.enabled) {
+            const dur = Math.floor(player.duration || 0);
+            const cur = Math.floor(player.currentTime || 0);
+            const remaining = Math.max(0, dur - cur);
+            curEl.textContent = '-' + formatTime(remaining);
+          } else {
+            curEl.textContent = formatTime(Math.floor(player.currentTime || 0));
+          }
+        });
+      }
+      root._myInvertToggle.enabled = !root._myInvertToggle.enabled;
+    }, true);
+  })();
+
+  closeCustomMenusWhenSettingsOpens();
+
+  player.on('ready', () => {
+    try {
+      //   👇🏻  GUARANTEED UI INJECTION  :  Runs Exactly When Plyr Has Finished Building !!
+      //   This Permanently Fixes The UI Flashing Bug On Brand New Links By Waiting For The Network .
+      initGestures(provider);
+      setupMenuOverlayBlock();
+      injectCustomSeekControls();
+      injectInlineVolumeSlider();
+      disableGesturesWhileMenusOpen();
+
+      //   Original Skip Logic
+      if (!noSkip && player.provider !== 'youtube' && player.media) {
+        player.media.addEventListener("loadedmetadata", () => {
+          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
+        });
+        player.media.addEventListener("play", () => {
+          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
+        });
+      }
+      
+      //   Original YouTube Quality Hack
+      if (player.provider === 'youtube' && player.embed?.setPlaybackQuality) {
+        player.embed.setPlaybackQuality('hd1440');
+      }
+    } catch (err) {
+      console.warn("Player ready init error", err);
+    }
+  });
+
+  //   👇🏻  Boot Up Custom UI Tracking Only After Player is Ready To Prevent Fatal Crashes
+  if (typeof window.startSessionTracking === 'function') window.startSessionTracking();
+  if (typeof window.startProgressTracking === 'function') window.startProgressTracking();
+}
+
+
+//   Check Provider & Initialize
+if (provider === "hls" && videoElement) {
+  const sourceUrl = decodeURIComponent(video);
+  // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
+
+  //   Safe Global Fallback To Hide The Loader If The Network Fails Early
+  function forceHideLoader() {
+    const loader = document.getElementById('playerLoader');
+    if (loader) loader.classList.remove('show');
+  }
+
+  //   👇🏻  THE ULTIMATE CORS HACK  :  Global XHR Interceptor  ( FIXED CRASH BUG )
+  if (!window.xhrPatched) {
+      window.xhrPatched = true;
+      const origOpen = XMLHttpRequest.prototype.open;
+      //   Using  ' arguments '  Object Safely Prevents The Native Browser Crash
+      XMLHttpRequest.prototype.open = function() {
+          if (typeof arguments[1] === 'string') {
+              let url = arguments[1];
+              //   Force All Absolute Heroku  Sub - Manifests  Back Through The Vercel Proxy
+              if (url.includes('live-server-h-3fd3ea6270f5.herokuapp.com')) {
+                  arguments[1] = url.replace('https://live-server-h-3fd3ea6270f5.herokuapp.com', '/stream-proxy');
+                  //   console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);      <--   ( Silenced )
+              }
+          }
+          return origOpen.apply(this, arguments);
+      };
+  }
+
+  if (Hls.isSupported()) {
+    const hls = new Hls({ 
+      debug: false,
+      xhrSetup: function (xhr, url) { 
+        if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
+          xhr.setRequestHeader('auth-key', 'romeo123'); 
+        }
+        
+        //   Track Network Responses To See Exactly What  Succeeds / Fails  ( REMOVED LOGS FOR UI PERFORMANCE )
+        xhr.addEventListener('loadend', () => {
+          if (xhr.status >= 400 || xhr.status === 0) {
+            //   console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+          } else if (url.includes('.m3u8')) {
+            //   console.log(`[MANIFEST SUCCESS] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+          }
+        });
+      }
+    });
+    
+    hls.loadSource(sourceUrl);
+    hls.attachMedia(videoElement);
+    
+    window.initialLiveSeekDone = false;
+    hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
+      if (data.details.live && !window.initialLiveSeekDone) {
+        window.initialLiveSeekDone = true;
+        setTimeout(() => { if (hls.liveSyncPosition) videoElement.currentTime = hls.liveSyncPosition; }, 200);
+      }
+    });
+
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      //   console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);      <--   ( Silenced )
+      if (data.fatal) {
+        forceHideLoader();       //   Safely Hide Loader Using The Global Function
+        
+        //   Ensure UI Builds Even On Failure So It Doesn't Spin Forever
+        if (!window.player) {
+          const plyrInstance = new Plyr('#player', plyrConfig);
+          initAllPlayerEvents(plyrInstance);
+        }
+        
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR: 
+            hls.destroy(); 
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR: 
+            hls.recoverMediaError(); 
+            break;
+          default: 
+            hls.destroy(); 
+            break;
+        }
+      }
+    });
+
+    hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+      
+      //   👇🏻  SMART AUTOPLAY  :  Attempt To Play Normally With Sound First  ( Uses Google's MEI Trust Score )
+      videoElement.muted = false;
+      videoElement.play().then(() => {
+          //   Browser Allowed Unmuted Autoplay !!  Do Nothing Else .
+      }).catch((err) => {
+          //   Browser Blocked Unmuted Autoplay .  Fall Back To The Muted Exploit .
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+              showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+              
+              //   The Moment The User Touches The Screen ,  Just Unmute  ( No 100% Volume Jump )
+              const unmuteHandler = () => {
+                  videoElement.muted = false;
+                  document.removeEventListener('touchstart', unmuteHandler);
+                  document.removeEventListener('click', unmuteHandler);
+              };
+              //   Use  { once: true }  So The Listener Automatically Kills Itself After  1 Tap
+              document.addEventListener('touchstart', unmuteHandler, { once: true });
+              document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(e => {
+              //   Silently Ignore If Browser is Excessively Strict
+          });
+      });
+
+      const availableQualities = hls.levels.map((l) => l.height);
+      const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+      uniqueQualities.unshift(0);       //   0 Acts as  " Auto "
+      
+      plyrConfig.quality = {
+        default: 0,
+        options: uniqueQualities,
+        forced: true,
+        onChange: (newQuality) => {
+          if (newQuality === 0) hls.currentLevel = -1;
+          else hls.currentLevel = hls.levels.findIndex(l => l.height === newQuality);
+        }
+      };
+
+      const plyrInstance = new Plyr('#player', plyrConfig);
+      initAllPlayerEvents(plyrInstance);
+    });
+
+    window.hls = hls; 
+
+  } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    videoElement.src = sourceUrl;
+    const plyrInstance = new Plyr('#player', plyrConfig);
+    initAllPlayerEvents(plyrInstance);
+  }
+} else {
+  //   Immediate Load For  Youtube & HTML5
+  const plyrInstance = new Plyr('#player', plyrConfig);
+  initAllPlayerEvents(plyrInstance);
+  
+  //   👇🏻  HTML5 SMART AUTOPLAY  :  Try Unmuted First ,  Fallback To Muted  ( Same as HLS )
+  if (provider === "html5" && videoElement) {
+      videoElement.muted = false;
+      videoElement.play().then(() => {
+          //   Browser Allowed Unmuted Autoplay Based On MEI !!
+      }).catch(() => {
+          //   Fallback To Muted Exploit
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+              showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+              const unmuteHandler = () => {
+                  videoElement.muted = false;
+                  //   Respect Device Volume ,  No  100 %  Jump
+              };
+              document.addEventListener('touchstart', unmuteHandler, { once: true });
+              document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(err => {});
+      });
+  }
+}
+
+
+function toggleDarkMode(e) {
+  const body = document.getElementById('themeBody');
+  const x = e.clientX || window.innerWidth / 2;
+  const y = e.clientY || window.innerHeight / 2;
+  body.style.setProperty('--ripple-x', `${x}px`);
+  body.style.setProperty('--ripple-y', `${y}px`);
+  body.classList.add('theme-ripple');
+  setTimeout(() => {
+    document.documentElement.classList.toggle('dark');
+    document.getElementById('themeToggle').textContent =
+      document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+  }, 200);
+  setTimeout(() => body.classList.remove('theme-ripple'), 700);
+}
+
+//   Gesture Logic NOT Affected
+function initGestures(type) {
+  setupGestureZone('gestureLeft', -10);
+  setupGestureZone('gestureRight', 10);
+  function setupGestureZone(zoneId, seekAmountDefault) {
+    const zone = document.getElementById(zoneId);
+    let lastTap = 0, isHolding = false, holdTimeout = null, startX = 0;
+    let gestureStartTime = 0;
+    zone.addEventListener('touchstart', function(e) {
+      startX = e.touches[0].clientX;
+      gestureStartTime = player.media.currentTime;
+      isHolding = false;
+      holdTimeout = setTimeout(() => isHolding = true, 1500);
+    }, { passive: false });
+    zone.addEventListener('touchmove', function(e) {
+      if (isHolding) {
+        let dx = e.touches[0].clientX - startX;
+        let seekAmount = dx / 10;
+        seekBy(seekAmount);
+        let targetTime = gestureStartTime + seekAmount;
+        let formattedTime = formatTime(targetTime);
+        showToast(seekAmount > 0 ? `>> ${formattedTime}` : `<< ${formattedTime}`);
+        vibrate();
+        e.preventDefault();
+      }
+    }, { passive: false });
+    zone.addEventListener('touchend', function(e) {
+      clearTimeout(holdTimeout);
+      const now = Date.now();
+      if (!isHolding && now - lastTap < 300) {
+        seekBy(seekAmountDefault);
+        showToast(seekAmountDefault < 0 ? '⏪ -10s' : '⏩ +10s');
+        vibrate();
+      }
+      lastTap = now;
+      isHolding = false;
+    });
+    zone.addEventListener('dblclick', e => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  }
+}
+
+function seekBy(seconds) {
+  const c = player.media?.currentTime || 0;
+  player.media.currentTime = Math.max(0, Math.min(player.media.duration || Infinity, c + seconds));
+}
+function vibrate() { if (navigator.vibrate) navigator.vibrate(15); }
+function showToast(text) {
+  const toast = document.getElementById('toast');
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(showToast._timeout);
+  showToast._timeout = setTimeout(() => toast.classList.remove('show'), 900);
+}
+
+function setupMenuOverlayBlock() {
+  const plyrRoot = document.querySelector('.plyr');
+  const gestureLeft = document.getElementById('gestureLeft');
+  const gestureRight = document.getElementById('gestureRight');
+  if (!plyrRoot || !gestureLeft || !gestureRight) return;
+  const observer = new MutationObserver(() => {
+    const menuOpen = plyrRoot.classList.contains('plyr--menu-open');
+    [gestureLeft, gestureRight].forEach(zone => {
+      zone.style.pointerEvents = menuOpen ? 'none' : 'auto';
+    });
+  });
+  observer.observe(plyrRoot, { attributes: true, attributeFilter: ['class'] });
+  const menuOpen = plyrRoot.classList.contains('plyr--menu-open');
+  [gestureLeft, gestureRight].forEach(zone => {
+    zone.style.pointerEvents = menuOpen ? 'none' : 'auto';
+  });
+}
+
+/*   <---  ✅  Close Other Menus When Settings Opens  --->   */
+function closeCustomMenusWhenSettingsOpens() {
+  const plyrRoot = document.querySelector('.plyr');
+  if (!plyrRoot) return;
+  new MutationObserver((mutationsList) => {
+    mutationsList.forEach(mutation => {
+      //   Menu Has Just Opened
+      if (
+        mutation.attributeName === 'class' &&
+        plyrRoot.classList.contains('plyr--menu-open')
+      ) {
+        closeAllMenus('plyr-settings');
+      }
+    });
+  }).observe(plyrRoot, { attributes: true, attributeFilter: ['class'] });
+}
+
+/*   <---  Close Other Menus When New One Opens  --->   */
+//   ===   REPLACE THE EXISTING  closeAllMenus  WITH THIS   ===
+function closeAllMenus(exceptId) {
+  //   Hide Our Custom Menus  ( Except The One We Want To Keep Open )
+  const menus = ['seekIntervalMenu', 'inlineVolumeSlider'];
+  menus.forEach(id => {
+    if (id !== exceptId) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    }
+  });
+
+  //   If We Should Close Plyr's  Settings / Menu  UI ,  Do It Thoroughly
+  const plyrRoot = document.querySelector('.plyr');
+    if (exceptId !== 'plyr-settings' && plyrRoot) {
+      //   If Plyr's Settings Menu is Open ,  Simulate a Toggle Click To Close It Properly
+      if (plyrRoot.classList.contains('plyr--menu-open')) {
+        const settingsBtn = plyrRoot.querySelector('[data-plyr="settings"]');
+        if (settingsBtn) settingsBtn.click();
+      }
+    }
+  }
+
+  function instantHideMenu(menu) {
+    if (!menu) return;
+    //   Disable Transition To Prevent Closing Animation
+    menu.style.transition = 'none';
+    menu.classList.remove('menu-show');
+    menu.style.display = 'none';
+    //   Restore Transition For Next Open
+    setTimeout(() => {
+      menu.style.transition = '';
+    }, 1);
+  }
+
+  function setIntervalBtnHighlight(isHighlighted) {
+    const intervalBtn = document.querySelector('#customSeekControls .plyr__control--seek:nth-child(2)');
+    if (!intervalBtn) return;
+    if (isHighlighted) {
+      intervalBtn.style.background = '#14b9ff';                 //   Highlighted Color For Button
+    } else {
+      intervalBtn.style.background = 'rgba(30,30,30,0.5)';      //   Default Color For Button
+    }
+  }
+  
+  function disableGesturesWhileMenusOpen() {
+    const gestureLeft = document.getElementById('gestureLeft');
+    const gestureRight = document.getElementById('gestureRight');
+    const seekMenu = document.getElementById('seekIntervalMenu');
+    const volumeSlider = document.getElementById('inlineVolumeSlider');
+
+    function updateGestures() {
+      const menuOpen =
+        (seekMenu && seekMenu.style.display !== 'none') ||
+        (volumeSlider && volumeSlider.style.display !== 'none');
+      if (gestureLeft && gestureRight) {
+        gestureLeft.style.pointerEvents = menuOpen ? 'none' : 'auto';
+        gestureRight.style.pointerEvents = menuOpen ? 'none' : 'auto';
+      }
+    }
+
+    if (seekMenu) {
+      new MutationObserver(updateGestures).observe(seekMenu, { attributes: true, attributeFilter: ['style'] });
+    }
+    if (volumeSlider) {
+      new MutationObserver(updateGestures).observe(volumeSlider, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    updateGestures();
+  }
+  
+  //   Call  closeAllMenus('seekIntervalMenu')  Before Showing Interval Menu
+  //   Call  closeAllMenus('inlineVolumeSlider')  Before Showing Volume Slider
+
+//   ==========  CUSTOM SEEK BUTTONS  ( Keep Only  Right - Side )  ==========
+
+function injectCustomSeekControls() {
+  const controls = document.querySelector('.plyr__controls');
+  if (!controls) return;
+  if (document.getElementById('customSeekControls')) return;
+
+  const container = document.createElement('div');
+  container.id = 'customSeekControls';
+
+  //   Standard Plyr SVG For  Backward / Forward
+  const svgRewind = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M6.5 10.76V16L1 10L6.5 4V7.1C12.5 7.48 17 9.28 19 13.74C17.18 12.04 12.5 11.16 7 11.15C6.83 11.15 6.66 11.14 6.5 11.13V10.76Z" fill="#fff"/></svg>`;
+  const svgForward = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13.5 10.76V16L19 10L13.5 4V7.1C7.5 7.48 3 9.28 1 13.74C2.82 12.04 7.5 11.16 13 11.15C13.17 11.15 13.34 11.14 13.5 11.13V10.76Z" fill="#fff"/></svg>`;
+
+  function createSeekBtn(icon, label) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'plyr__control plyr__control--seek';
+    btn.innerHTML = icon;
+    btn.title = label;
+    btn.style.background = 'rgba(30,30,30,0.5)';
+    btn.style.borderRadius = '4px';
+    btn.style.padding = '0 4px';
+    btn.style.height = '31px';
+    btn.style.width = '31px';
+    return btn;
+  }
+
+  // Seek interval Middle Button
+  const intervalBtn = document.createElement('button');
+  intervalBtn.type = 'button';
+  intervalBtn.className = 'plyr__control plyr__control--seek';
+  intervalBtn.textContent = '10s';
+  intervalBtn.title = 'Select seek interval';
+  intervalBtn.style.background = 'rgba(30,30,30,0.5)';    //   ✅ Same as back/forward buttons by default
+  intervalBtn.style.color = '#fff';
+  intervalBtn.style.fontWeight = 'bold';
+  intervalBtn.style.borderRadius = '4px';
+  intervalBtn.style.padding = '0 4px';
+  intervalBtn.style.minWidth = '31px';
+  intervalBtn.style.minHeight = '31px';
+
+  // Seek interval menu
+  const seekIntervalMenu = document.createElement('div');
+  seekIntervalMenu.id = 'seekIntervalMenu';
+  seekIntervalMenu.style.display = 'none';
+  seekIntervalMenu.classList.add('menu-animate');
+
+  const seekIntervals = [100, 85, 65, 50, 40, 30, 20, 10];
+  let selectedInterval = 10;
+  function updateIntervalBtnLabel() { intervalBtn.textContent = `${selectedInterval}s`; }
+  seekIntervals.forEach(interval => {
+    const btn = document.createElement('button');
+    btn.className = 'plyr__control interval-btn';
+    btn.textContent = `${interval}s`;
+    btn.style.margin = "2px 6px";
+    btn.style.borderRadius = '5px';
+    btn.style.minWidth = '100px';
+
+    // Add "selected" class for initial selection
+    if (interval === selectedInterval) {
+      btn.classList.add('selected');
+    }
+
+    btn.onclick = () => {
+      selectedInterval = interval;
+      updateIntervalBtnLabel();
+      // Remove 'selected' class from all buttons
+      Array.from(seekIntervalMenu.children).forEach(b => b.classList.remove('selected'));
+      // Add 'selected' class to clicked button
+      btn.classList.add('selected');
+      seekIntervalMenu.style.display = 'none';
+    }
+    seekIntervalMenu.appendChild(btn);
+  });
+
+  intervalBtn.onclick = function(e){
+    e.stopPropagation();
+    const isOpen = seekIntervalMenu.style.display === "flex";
+
+    //   👇🏻 Hide other menus before showing interval menu
+    closeAllMenus('seekIntervalMenu');
+
+    //   🎊 Toggle visibility (no need for dynamic positioning)
+    if (isOpen) {
+      instantHideMenu(seekIntervalMenu);
+    } else {
+      positionSeekMenu();   // compute left/bottom before making menu visible
+      seekIntervalMenu.style.display = 'flex';
+      setTimeout(() => {
+        seekIntervalMenu.classList.add('menu-show');
+        setIntervalBtnHighlight(true);    //   ✅ Add highlight when opening
+      }, 10);
+    }
+
+    //   ✅ Lock gesture controls while menu is open
+    const gestureLeft = document.getElementById('gestureLeft');
+    const gestureRight = document.getElementById('gestureRight');
+    if (seekIntervalMenu.style.display === "flex") {
+      gestureLeft.style.pointerEvents = "none";
+      gestureRight.style.pointerEvents = "none";
+    } else {
+      gestureLeft.style.pointerEvents = "auto";
+      gestureRight.style.pointerEvents = "auto";
+    }
+  };
+  
+  // Seek buttons
+  const btnBack = createSeekBtn(svgRewind, "Seek backward");
+  const btnForward = createSeekBtn(svgForward, "Seek forward");
+  btnBack.onclick = () => { seekBy(-selectedInterval); showToast(`⏪ -${selectedInterval}s`); vibrate(); }
+  btnForward.onclick = () => { seekBy(selectedInterval); showToast(`⏩ +${selectedInterval}s`); vibrate(); }
+
+  container.appendChild(btnBack);
+  container.appendChild(intervalBtn);
+  container.appendChild(btnForward);
+  // append the interval menu inside the controls so absolute positioning is relative to the controls
+  document.body.appendChild(seekIntervalMenu);
+
+  /* ---------- position helper: align menu above the interval button ---------- */
+  function positionSeekMenu() {
+  // show briefly for measurement, but keep hidden to avoid flicker
+  seekIntervalMenu.style.display = 'block';
+  seekIntervalMenu.style.visibility = 'hidden';
+  seekIntervalMenu.classList.remove('menu-show');
+
+  requestAnimationFrame(() => {
+    const btnRect = intervalBtn.getBoundingClientRect();
+    const menuWidth = seekIntervalMenu.offsetWidth;
+    const menuHeight = seekIntervalMenu.offsetHeight;
+
+    // horizontal nudge: tweak per device size (recalculated each time)
+    // --- horizontal nudge (keep this, like in your current code) ---  
+    const horizontalNudge = 33; // tweak to shift left/right  
+    const verticalOffset = 15; // gap between button and menu (tweak to taste)
+
+    // If menu is appended to body -> compute viewport coordinates
+    if (seekIntervalMenu.parentElement === document.body) {
+      let left = btnRect.left + window.scrollX + (btnRect.width / 2) - (menuWidth / 2) - horizontalNudge;
+      // clamp to viewport
+      left = Math.max(6, Math.min(left, window.innerWidth - menuWidth - 6));
+
+      // place above the button; if not enough space, place below
+      let top = btnRect.top + window.scrollY - menuHeight - verticalOffset;
+      if (top < 6) top = btnRect.bottom + window.scrollY + verticalOffset;
+
+      seekIntervalMenu.style.position = 'absolute';
+      seekIntervalMenu.style.left = `${Math.round(left)}px`;
+      seekIntervalMenu.style.top = `${Math.round(top)}px`;
+      // ensure we clear bottom if previously used
+      seekIntervalMenu.style.bottom = '';
+    } else {
+      // Menu is inside a parent (e.g. controls) — compute coords relative to that parent
+      const parentRect = seekIntervalMenu.parentElement.getBoundingClientRect();
+
+      // left relative to parent
+      let left = (btnRect.left - parentRect.left) + (btnRect.width / 2) - (menuWidth / 2) - horizontalNudge;
+
+      // clamp inside parent
+      left = Math.max(6, Math.min(left, Math.max(6, parentRect.width - menuWidth - 6)));
+
+      // top relative to parent: place above the button. If not enough space, place below.
+      let top = (btnRect.top - parentRect.top) - menuHeight - verticalOffset;
+      if (top < 6) top = (btnRect.bottom - parentRect.top) + verticalOffset;
+
+      seekIntervalMenu.style.position = 'absolute';
+      seekIntervalMenu.style.left = `${Math.round(left)}px`;
+      seekIntervalMenu.style.top = `${Math.round(top)}px`;
+      seekIntervalMenu.style.bottom = '';
+    }
+
+    // restore visibility (menu-show is toggled elsewhere to animate)
+    seekIntervalMenu.style.visibility = '';
+  });
+  }
+
+  // re-position while open if the window is resized
+  ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(evt => {
+    window.addEventListener(evt, () => {
+      if (seekIntervalMenu.style.display !== 'none') {
+        positionSeekMenu();
+      }
+    });
+  });
+
+  // Place right after mute button for consistent layout
+  const muteBtn = controls.querySelector('[data-plyr="mute"]');
+  muteBtn?.insertAdjacentElement('afterend', container);
+
+  // Hide interval menu on outside click
+  document.addEventListener('click', function(ev){
+    if (!seekIntervalMenu.contains(ev.target) &&
+        ev.target !== intervalBtn
+    ) {
+      instantHideMenu(seekIntervalMenu);
+      setIntervalBtnHighlight(false);       //   ✅ Reset highlight on outside click
+      // restore gesture zones when menu closes
+      const gestureLeft = document.getElementById('gestureLeft');
+      const gestureRight = document.getElementById('gestureRight');
+      if (gestureLeft && gestureRight) {
+        gestureLeft.style.pointerEvents = "auto";
+        gestureRight.style.pointerEvents = "auto";
+      }
+    }
+  });
+
+  // handle fullscreen toggling: move menu to best parent and reposition
+  function handleFullscreenMove() {
+    const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (isFullscreen) {
+      // append to the plyr root wrapper (fullscreen element), not controls
+      const plyrRoot = controls.closest('.plyr');
+      plyrRoot.appendChild(seekIntervalMenu);
+    } else {
+      // back to body so it can overflow outside player in normal mode
+      document.body.appendChild(seekIntervalMenu);
+    }
+
+    if (seekIntervalMenu.style.display !== 'none') {
+      requestAnimationFrame(positionSeekMenu);
+    }
+  }
+
+  // listen for full-screen changes (standard + webkit)
+  document.addEventListener('fullscreenchange', handleFullscreenMove);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenMove);
+}
+
+// ========== INLINE VOLUME SLIDER ==========
+
+function injectInlineVolumeSlider() {
+  const controls = document.querySelector('.plyr__controls');
+  if (!controls) return;
+  if (document.getElementById('inlineVolumeSlider')) return;
+  const muteBtn = controls.querySelector('[data-plyr="mute"]');
+  if (!muteBtn) return;
+
+  // Create the slider container
+  const volContainer = document.createElement('div');
+  let volumeAutoHideTimeout = null;
+  volContainer.id = 'inlineVolumeSlider';
+  volContainer.style.display = 'none';
+  volContainer.classList.add('menu-animate');
+
+  // Vertical slider
+  const volumeSlider = document.createElement('input');
+  volumeSlider.type = 'range';
+  volumeSlider.min = 0; volumeSlider.max = 1; volumeSlider.step = 0.01; volumeSlider.value = 1;
+
+  volContainer.appendChild(volumeSlider);
+  muteBtn.insertAdjacentElement('afterend', volContainer);
+
+  // Show slider when mute/volume button is clicked, set volume to 100%
+  muteBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    const isOpen = volContainer.style.display === 'flex' && volContainer.classList.contains('menu-show');
+
+    if (isOpen) {
+      //   ✅  If Open ,  Hide Instantly & Clear Timer
+      instantHideMenu(volContainer);
+      muteBtn.style.background = '';
+      if (volumeAutoHideTimeout) {
+        clearTimeout(volumeAutoHideTimeout);
+        volumeAutoHideTimeout = null;
+      }
+    } else {
+      //   ✅  Show Volume Slider
+      closeAllMenus('inlineVolumeSlider');
+      player.muted = false;
+      player.volume = 1;
+      volumeSlider.value = 1;
+      volContainer.style.display = 'flex';
+      setTimeout(() => volContainer.classList.add('menu-show'), 10);
+      muteBtn.style.background = '#14b9ff';       //   😍  <==  Apply Your Desired Background Color Here
+
+      //   ✅  Clear Any Existing Timer Before Setting New One
+      if (volumeAutoHideTimeout) clearTimeout(volumeAutoHideTimeout);
+  
+      //   ✅  Set New  Auto - Hide  Timer For 8 Seconds
+      volumeAutoHideTimeout = setTimeout(() => {
+        instantHideMenu(volContainer);
+        muteBtn.style.background = '';
+        volumeAutoHideTimeout = null;
+      }, 8000);        //   ⏳  Auto Hides The Volume Slidebar After 8 Seconds
+    }
+  });
+
+  //   Volume Slider Logic
+  volumeSlider.addEventListener('input', function(){
+    player.volume = this.value;
+    player.muted = (Number(this.value) < 0.01);
+  });
+
+  player.on('volumechange', () => {
+    volumeSlider.value = player.volume;
+  });
+
+  //   Hide Slider On Outside Click
+  document.addEventListener('click', function(ev){
+    if (!volContainer.contains(ev.target) &&
+        ev.target !== muteBtn
+    ) {
+      instantHideMenu(volContainer);
+      if (volumeAutoHideTimeout) {
+        clearTimeout(volumeAutoHideTimeout);
+        volumeAutoHideTimeout = null;
+      }
+      muteBtn.style.background = '';
+    }
+  });
+}
+
+//   ======  Current Session Card Logic  ======
+//   ======  Current Session Card Logic  ( Improved )  ======
+const sessionStatusDot = document.getElementById("sessionStatusDot");
+const sessionCurrentTime = document.getElementById("sessionCurrentTime");
+const sessionTotalDuration = document.getElementById("sessionTotalDuration");
+
+let sessionTimer = null;
+let watchedMilliseconds = 0;
+let lastTick = null;
+
+let isMetadataLoaded = false;
+let isBufferingOrSeeking = false;
+
+//   Watchdog Helpers ( Detect  " Stuck While Playing " )
+let watchdogIntervalId = null;
+let lastObservedTime = 0;
+let timeStuckSince = null;
+const TIME_STUCK_THRESHOLD_MS = 900;       //   If Time Hasn't Moved  >  Threshold  =>  Treat as Buffering
+const WATCHDOG_INTERVAL_MS = 500;          //   Check Every 500ms
+
+//   Format Time Helper → HH:MM:SS:MS
+function formatSessionTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const milliseconds = Math.floor(ms % 1000 / 10);       //   Two - Digit  ms
+
+  return [
+    hours.toString().padStart(2, "0"),
+    minutes.toString().padStart(2, "0"),
+    seconds.toString().padStart(2, "0"),
+  ].join(":") + ":" + milliseconds.toString().padStart(2, "0");
+}
+
+function setSessionDotState(state) {
+  //   Clear Possible Classes ,  Then Add Exactly One
+  sessionStatusDot.classList.remove("bg-green-600", "bg-red-600", "bg-yellow-900");
+  if (state === "playing") sessionStatusDot.classList.add("bg-green-600");
+  else if (state === "buffering") sessionStatusDot.classList.add("bg-yellow-900");
+  else sessionStatusDot.classList.add("bg-red-600"); // paused/ended
+}
+
+//   Start Counting Watch Time
+function startSessionTimer() {
+  if (sessionTimer) return;
+  lastTick = Date.now();
+  sessionTimer = setInterval(() => {
+    const now = Date.now();
+    //   Guard Against Negative Diffs
+    const delta = Math.max(0, now - lastTick);
+    watchedMilliseconds += delta;
+    lastTick = now;
+    sessionCurrentTime.textContent = formatSessionTime(watchedMilliseconds);
+  }, 50);      //   Update Every 50ms  ( Same as Before )
+}
+
+function stopSessionTimer() {
+  if (!sessionTimer) return;
+  clearInterval(sessionTimer);
+  sessionTimer = null;
+}
+
+//   Enter  Buffering / Seeking  State  ( Stop Timer )
+function enterBuffering() {
+  if (isBufferingOrSeeking) return;
+  isBufferingOrSeeking = true;
+  //   Stop The Timer Immediately
+  stopSessionTimer();
+  //   Visually Indicate Buffering
+  setSessionDotState("buffering");
+}
+
+//   Exit  Buffering / Seeking  State  ( Resume Timer Only If Actually Playing )
+function exitBuffering() {
+  if (!isBufferingOrSeeking) return;
+  isBufferingOrSeeking = false;
+  //   Restore Dot Based On Paused State
+  setSessionDotState(player.paused ? "paused" : "playing");
+  //   Resume Only if Actually Playing & Metadata Loaded
+  if (!player.paused && isMetadataLoaded) {
+    startSessionTimer();
+  }
+}
+
+
+//   👇🏻  WRAP ALL SESSION EVENTS IN A FUNCTION SO THEY WAIT FOR PLAYER TO INITIALIZE
+window.startSessionTracking = function() {
+  
+  //   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
+  window.player.media?.addEventListener('loadedmetadata', () => {
+    isMetadataLoaded = true;
+    if (window.player.duration) {
+      const totalMs = Math.floor(window.player.duration * 1000);
+      sessionTotalDuration.textContent = formatSessionTime(totalMs);
+    }
+    //   If Already Playing When Metadata Arrives ,  Start Timer
+    if (!window.player.paused && !isBufferingOrSeeking) {
+      startSessionTimer();
+      setSessionDotState("playing");
+    }
+  });
+
+  //   Plyr Events  :  Play / Pause / Ended
+  window.player.on("play", () => {
+    //   👇🏻  TIMER FIX  :  YouTube Suppresses Loadedmetadata Events On Live Streams .
+    //   If The Video is Physically Playing ,  We Force  isMetadataLoaded  To True .
+    isMetadataLoaded = true; 
+    setSessionDotState("playing");
+    if (!isBufferingOrSeeking) startSessionTimer();
+  });
+
+  window.player.on("pause", () => {
+    setSessionDotState("paused");
+    stopSessionTimer();
+  });
+
+  window.player.on("ended", () => {
+    setSessionDotState("paused");
+    stopSessionTimer();
+  });
+
+  //   Buffer / Seeking  Related Events  ( Plyr - Level )
+  window.player.on("seeking", enterBuffering);
+  window.player.on("waiting", enterBuffering);
+  window.player.on("stalled", enterBuffering);
+
+  //   When Playback Actually Resumes ,  Clear Buffering State
+  window.player.on("playing", exitBuffering);
+  window.player.on("canplay", exitBuffering);
+  window.player.on("canplaythrough", exitBuffering);
+
+  //   Seeked is Sometimes Emitted Before  Playing / Canplay
+  window.player.on("seeked", () => {
+    setTimeout(() => {
+      if (!window.player.paused) exitBuffering();
+    }, 250);
+  });
+
+  //   Also Attach Native Media Events Where Available  ( HTML5 Path )
+  if (window.player.media) {
+    window.player.media.addEventListener('seeking', enterBuffering);
+    window.player.media.addEventListener('waiting', enterBuffering);
+    window.player.media.addEventListener('stalled', enterBuffering);
+    window.player.media.addEventListener('playing', exitBuffering);
+    window.player.media.addEventListener('canplay', exitBuffering);
+    window.player.media.addEventListener('canplaythrough', exitBuffering);
+    window.player.media.addEventListener('seeked', () => {
+      setTimeout(() => {
+        if (!window.player.paused) exitBuffering();
+      }, 250);
+    });
+  }
+
+  //   WATCHDOG  :  Detect  " Time Not Advancing While Player Claims to Be Playing "
+  if (watchdogIntervalId) clearInterval(watchdogIntervalId);
+  watchdogIntervalId = setInterval(() => {
+    if (!isMetadataLoaded) return;
+
+    if (window.player.paused || window.player.ended) {
+      lastObservedTime = Number(window.player.currentTime || 0);
+      timeStuckSince = null;
+      return;
+    }
+
+    let cur = Number(window.player.currentTime || 0);
+    
+    //   👇🏻  WATCHDOG FIX  :  YouTube iframe API Desyncs Natively .  Extract Actual Time Directly From Google .
+    if (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getCurrentTime === 'function') {
+        const ytCur = Number(window.player.embed.getCurrentTime() || 0);
+        if (ytCur > 0) cur = ytCur;
+    }
+
+    if (Math.abs(cur - lastObservedTime) < 0.05) {
+      if (!timeStuckSince) timeStuckSince = Date.now();
+      else if (Date.now() - timeStuckSince > TIME_STUCK_THRESHOLD_MS) {
+        enterBuffering();
+      }
+    } else {
+      timeStuckSince = null;
+      if (isBufferingOrSeeking) exitBuffering();
+    }
+    lastObservedTime = cur;
+  }, WATCHDOG_INTERVAL_MS);
+};
+
+//   End Improved Session Logic
+
+//   ==========  Progress Cards  ( Watched / Remaining )  ==========
+(function() {
+  const leftFill = document.getElementById('leftProgressFill');         //   Watched Bar
+  const rightFill = document.getElementById('rightProgressFill');       //   Remaining Bar
+  const leftPercentEl = document.getElementById('leftPercent');
+  const rightPercentEl = document.getElementById('rightPercent');
+
+  if (!leftFill || !rightFill || !leftPercentEl || !rightPercentEl) {
+    console.warn('Progress UI elements missing – progress cards disabled.');
+    return;
+  }
+
+  //   Helper  :  Format With  Leading Zero + 2 Decimals
+  function formatPercent(value) {
+    const fixed = value.toFixed(2);                 //   e.g.  -  " 3.50 "
+    const [intPart, decPart] = fixed.split('.');
+    const paddedInt = intPart.padStart(2, '0');     //   " 03 "
+    return `${paddedInt}.${decPart}`;
+  }
+
+  //   Initial UI  ( Before Playback Starts Or At 0:00 )
+  function setInitialUI() {
+    leftFill.style.width = '0%';
+    rightFill.style.width = '100%';
+    leftPercentEl.textContent = '0%  Watched';
+    rightPercentEl.textContent = '100%  Remaining';
+  }
+
+
+  //   Update While Video is  Playing / Seeking
+  function updateProgressFromPlayer() {
+    let dur = Number(player.duration || 0);
+    let cur = Number(player.currentTime || 0);
+    
+    let isYtLive = false;
+
+    //   👇🏻  YOUTUBE IFRAME API OVERRIDE 
+    if (player.provider === 'youtube' && player.embed) {
+        if (typeof player.embed.getVideoData === 'function') {
+            isYtLive = player.embed.getVideoData().isLive || false;
+        }
+        if (typeof player.embed.getDuration === 'function') {
+            const ytDur = Number(player.embed.getDuration() || 0);
+            if (ytDur > 0) dur = ytDur;
+        }
+        if (typeof player.embed.getCurrentTime === 'function') {
+            const ytCur = Number(player.embed.getCurrentTime() || 0);
+            if (ytCur > 0) cur = ytCur;
+        }
+    }
+
+    //   👇🏻  THE NUCLEAR FALLBACK  :  If Google's API Refuses To Provide a Duration ,  Scrape It Visually From Plyr's UI !!
+    if (dur === 0) {
+        const uiDurEl = document.querySelector('.plyr__time--duration');
+        if (uiDurEl && uiDurEl.textContent) {
+            const parts = uiDurEl.textContent.replace(/-/g, '').trim().split(':').reverse();
+            let scrapedSecs = 0;
+            if (parts[0]) scrapedSecs += parseInt(parts[0], 10) || 0;
+            if (parts[1]) scrapedSecs += (parseInt(parts[1], 10) || 0) * 60;
+            if (parts[2]) scrapedSecs += (parseInt(parts[2], 10) || 0) * 3600;
+            if (scrapedSecs > 0) dur = scrapedSecs;
+        }
+    }
+
+    //   👇🏻  DYNAMIC SESSION CARD FIX
+    if (dur > 0 || isYtLive || cur > 0) {
+        if (!isMetadataLoaded) isMetadataLoaded = true;
+        
+        //   Kickstart The Watched Clock If Paused State is False
+        if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
+            startSessionTimer();
+            setSessionDotState("playing");
+        }
+        
+        //   Format The Actual Total Duration
+        if (isYtLive) {
+            if (dur > 0) {
+                document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
+            } else {
+                document.getElementById("sessionTotalDuration").textContent = "Live Stream";
+            }
+        } else if (dur === Infinity) {
+            document.getElementById("sessionTotalDuration").textContent = "Live Stream";
+        } else {
+            document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
+        }
+    }
+
+    //   Early Exit Trap  :  Only Quit If It's a VOD & Truly Has 0 Duration
+    if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
+      checkLiveDrift(cur, dur, isYtLive);
+      return;
+    }
+
+    let frac = (dur > 0) ? Math.max(0, Math.min(1, cur / dur)) : 1;
+    let watchedPct = frac * 100;
+    let remPct = 100 - watchedPct;
+
+    //   👇🏻  SMART PERCENTAGE FIX 
+    if (isYtLive) {
+      leftFill.style.width = '100%';
+      rightFill.style.width = '0%';
+      leftPercentEl.textContent = '100%   Watched';
+      rightPercentEl.textContent = '0%   Remaining';
+    } else {
+      if (cur === 0) {
+        leftFill.style.width = '0%';
+        rightFill.style.width = '100%';
+        leftPercentEl.textContent = '0%   Watched';
+        rightPercentEl.textContent = '100%   Remaining';
+      } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
+        leftFill.style.width = '100%';
+        rightFill.style.width = '0%';
+        leftPercentEl.textContent = '100%   Watched';
+        rightPercentEl.textContent = '0%   Remaining';
+      } else {
+        leftFill.style.width = `${watchedPct.toFixed(2)}%`;
+        rightFill.style.width = `${remPct.toFixed(2)}%`;
+        leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
+        rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+      }
+    }
+
+    if (window.watchedWave) window.watchedWave.update(isYtLive ? 1 : frac);
+    if (window.remainingWave) window.remainingWave.update(isYtLive ? 0 : 1 - frac);
+    
+    checkLiveDrift(cur, dur, isYtLive);
+  }
+  
+
+  function checkLiveDrift(cur, dur, isYtLive) {
+    const liveIndicator = document.getElementById('liveIndicator');
+    const liveIndicatorText = document.getElementById('liveIndicatorText');
+    const liveIndicatorDot = document.getElementById('liveIndicatorDot');
+    
+    if (!liveIndicator) return;
+
+    let isLive = isYtLive;
+    let liveEdgeTime = dur;
+
+    //   1.  Detect HLS Streams  ( PW / Custom M3U8 )
+    if (window.hls && window.hls.levels && window.hls.levels.length > 0) {
+        const levelIndex = window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel;
+        const currentLevel = window.hls.levels[levelIndex];
+        
+        if (currentLevel && currentLevel.details && currentLevel.details.live) {
+            isLive = true;
+            liveEdgeTime = window.hls.liveSyncPosition || dur;
+        }
+    } else if (dur === Infinity) {
+        isLive = true;
+    }
+
+    //   SMART TOGGLE  :  Hide Completely If It's a Normal  MP4 or YouTube VOD
+    if (!isLive) {
+        liveIndicator.style.display = 'none';
+        return;
+    }
+
+    //   Stream is Live .  Ensure Button is Visible .
+    liveIndicator.style.display = 'flex';
+
+    //   👇🏻  YOUTUBE BYPASS  :  If YouTube Live ,  Strictly Force The GREEN LIVE State To Avoid Mathematical UI Breaking
+    if (isYtLive) {
+        liveIndicatorText.textContent = "LIVE";
+        liveIndicatorText.style.color = "#16a34a";
+        liveIndicatorDot.style.backgroundColor = "#16a34a";
+        liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+        return;
+    }
+
+    //   Mathematical Drift Check Specifically For PW HLS Streams
+    const secondsBehind = liveEdgeTime - cur;
+    
+    //   12 - Second  Tolerance For PW Streams
+    if (secondsBehind <= 12) { 
+        liveIndicatorText.textContent = "LIVE";
+        liveIndicatorText.style.color = "#16a34a";
+        liveIndicatorDot.style.backgroundColor = "#16a34a";
+        liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+    } else {
+        liveIndicatorText.textContent = "NOT LIVE";
+        liveIndicatorText.style.color = "#ef4444";
+        liveIndicatorDot.style.backgroundColor = "#ef4444";
+        liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
+    }
+  }
+
+
+  //   Make The Live Indicator Button Clickable To Forcefully Jump Back To Live Edge
+  const liveInd = document.getElementById('liveIndicator');
+  if (liveInd) {
+    liveInd.addEventListener('click', () => {
+      if (!window.player) return;
+      
+      const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
+
+      //   ( Logs Removed For Performance )
+      
+      if (window.hls && window.hls.liveSyncPosition) {
+        window.player.currentTime = window.hls.liveSyncPosition;
+      } else if (isYtLive && window.player.duration) {
+        //   👇🏻  YOUTUBE JUMP BYPASS  :  Instead of Calculating Math That Breaks The Iframe , 
+        //   We Execute YouTube's Native Embed API Directly .  It Clamps To The Safest Live Edge Natively .
+        if (window.player.embed && window.player.embed.seekTo) {
+           window.player.embed.seekTo(window.player.duration, true);
+        } else {
+           window.player.currentTime = window.player.duration;
+        }
+      } else if (window.player.duration && window.player.duration !== Infinity) {
+        window.player.currentTime = window.player.duration;
+      }
+    });
+  }
+
+  
+  //   👇🏻  WRAP PROGRESS EVENTS TO WAIT FOR PLAYER INITIALIZATION
+  window.startProgressTracking = function() {
+    setInitialUI();
+    window.player.on('timeupdate', updateProgressFromPlayer);
+    window.player.on('play', updateProgressFromPlayer);
+    window.player.on('seeked', updateProgressFromPlayer);
+    window.player.on('loadedmetadata', updateProgressFromPlayer);
+    window.player.on('ended', updateProgressFromPlayer);
+    setTimeout(updateProgressFromPlayer, 80);
+  };
+})();
+
+
+//   🎊  Water Wave Effect Under Info Cards  ( Final Version )
+//   -  Smooth Continuous Wave Animation  ( No Jitter )
+//   -  Inner Water Circle Inset  ( With Gap Around It )
+//   -  Outer Ring With Configurable Color
+//   -  Water Wave Gradient Color Remains Constant
+function createWaveCircle(
+  containerId,
+  color1 = "#6faeff",                 //   Top of Water Gradient
+  color2 = "#1d5ee9",                 //   Bottom of Water Gradient
+  ringColor = "#1d5ee9"               //   Only Outer Ring Color  ( Customizable )
+) {
+  const SIZE = 60;                    //   Total SVG Size
+  const svgNS = "http://www.w3.org/2000/svg";
+  const container = document.getElementById(containerId);
+
+  //   Outer Ring Radius
+  const outerR = SIZE / 2 - 2;
+  //   Inner Circle Radius  ( For Water Area )  –  Slightly Smaller To Create The  " gap "
+  const innerR = outerR - 4;          //   Gap Size  =  4px , Adjust If Needed
+
+  //   Create SVG Container
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("width", SIZE);
+  svg.setAttribute("height", SIZE);
+  svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
+
+  //   ======  Defs  ( Gradient + Clip )  ======
+  const defs = document.createElementNS(svgNS, "defs");
+
+  //   Gradient For The Water
+  const grad = document.createElementNS(svgNS, "linearGradient");
+  grad.id = containerId + "grad";
+  grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0");
+  grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+
+  const stop1 = document.createElementNS(svgNS, "stop");
+  stop1.setAttribute("offset", "0%");
+  stop1.setAttribute("stop-color", color1);
+  const stop2 = document.createElementNS(svgNS, "stop");
+  stop2.setAttribute("offset", "100%");
+  stop2.setAttribute("stop-color", color2);
+
+  grad.appendChild(stop1);
+  grad.appendChild(stop2);
+  defs.appendChild(grad);
+
+  //   Clip - Path  ( Only Inside The Smaller Inner Circle )
+  const clip = document.createElementNS(svgNS, "clipPath");
+  clip.id = containerId + "clip";
+  const circle = document.createElementNS(svgNS, "circle");
+  circle.setAttribute("cx", SIZE / 2);
+  circle.setAttribute("cy", SIZE / 2);
+  circle.setAttribute("r", innerR);
+  clip.appendChild(circle);
+  defs.appendChild(clip);
+
+  svg.appendChild(defs);
+
+  //   ======  Background Inner Circle  ======
+  const bgCircle = document.createElementNS(svgNS, "circle");
+  bgCircle.setAttribute("cx", SIZE / 2);
+  bgCircle.setAttribute("cy", SIZE / 2);
+  bgCircle.setAttribute("r", innerR);
+  bgCircle.setAttribute("fill", "#fff");           //   White Background Behind Waves
+  svg.appendChild(bgCircle);
+
+  //   ======  Outer Ring  ======
+  const outerRing = document.createElementNS(svgNS, "circle");
+  outerRing.setAttribute("cx", SIZE / 2);
+  outerRing.setAttribute("cy", SIZE / 2);
+  outerRing.setAttribute("r", outerR);
+  outerRing.setAttribute("fill", "none");
+  outerRing.setAttribute("stroke", ringColor);     //   Configurable Ring Color
+  outerRing.setAttribute("stroke-width", 2);
+  svg.appendChild(outerRing);
+
+  //   ======  Water Group  ( Clipped )  ======
+  const g = document.createElementNS(svgNS, "g");
+  g.setAttribute("clip-path", `url(#${clip.id})`);
+
+  const wave1 = document.createElementNS(svgNS, "path");
+  wave1.setAttribute("fill", `url(#${grad.id})`);
+  wave1.setAttribute("fill-opacity", "0.6");
+
+  const wave2 = document.createElementNS(svgNS, "path");
+  wave2.setAttribute("fill", `url(#${grad.id})`);
+  wave2.setAttribute("fill-opacity", "0.5");
+
+  g.appendChild(wave1);
+  g.appendChild(wave2);
+  svg.appendChild(g);
+  container.appendChild(svg);
+
+  //   ======  Animation State  ======
+  let targetProgress = 0;       //   Set By .update(progress)
+  let smoothProgress = 0;       //   Lerped Value For Smooth Rise
+  let phase1 = 0, phase2 = 0;
+
+  //   Wave Generator Function
+  function buildWave(width, amp, freq, phase, levelY) {
+    const step = 1;             //   Smaller  =  Smoother ,  Bigger  =  Faster Performance
+    let d = `M0 ${SIZE} `;
+    for (let x = 0; x <= width; x += step) {
+      const y = Math.sin((x / width) * freq * Math.PI * 2 + phase) * amp + levelY;
+      d += `L${x},${y} `;
+    }
+    d += `L${width} ${SIZE} Z`;
+    return d;
+  }
+
+  //   ======  Animation Loop  ======
+  function animate() {
+    //   Smoothly Interpolate Water Level
+    smoothProgress += (targetProgress - smoothProgress) * 0.05;
+    const levelY = SIZE - smoothProgress * SIZE;
+
+    //   Advance Wave Phases
+    phase1 -= 0.05;
+    phase2 -= 0.07;
+
+    //   Update Wave Paths
+    wave1.setAttribute("d", buildWave(SIZE, 3, 2, phase1, levelY));
+    wave2.setAttribute("d", buildWave(SIZE, 2, 1.5, phase2, levelY + 2));
+
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+  //   ======  Public API  ======
+  return {
+    update(progress) {
+      targetProgress = Math.max(0, Math.min(1, Number(progress) || 0));
+    }
+  };
+}
+  
+//   Init After DOM
+window.watchedWave = createWaveCircle("watchedWave", "#6faeff", "#1d5ee9", "#9c0892");     //   ✅ Pinkish Ring
+window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "#874609");     //    ✅ Orange Ring
+  
+</script>
+</body>
+</html>
