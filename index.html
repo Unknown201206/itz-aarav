@@ -85,14 +85,16 @@
           if (!videoID) throw new Error("Invalid YouTube Link. Could not extract the 11-character ID.");
         } 
 
-        //   2.  PW / Heroku  Protected Stream Logic
+        //   2.  PW / Heroku  Protected Stream Logic  ( Reverted To Vercel Proxy To Allow  AUTH-KEY  Preflight )
         else if (rawUrl.includes('live-server') || rawUrl.includes('herokuapp.com') || rawUrl.includes('/pw/live')) {
           provider = 'hls';
           const urlObj = new URL(rawUrl);
+          
           //   Strip Domain ,  Extract Path + Token ,  Replace  " /pw/live "  With  " /live "  For Direct Proxy Access
           let pathAndQuery = urlObj.pathname + urlObj.search;
           pathAndQuery = pathAndQuery.replace('/pw/live', '/live');
           
+          //   Route Through Your Vercel  vercel.json  Proxy To Bypass CORS Safely & Allow Header Injection
           const proxyPath = '/stream-proxy' + pathAndQuery; 
           videoParam = encodeURIComponent(proxyPath);
         }
