@@ -2202,23 +2202,40 @@ window.startSessionTracking = function() {
 
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
-    const dur = Number(player.duration || 0);
-    const cur = Number(player.currentTime || 0);
+    let dur = Number(player.duration || 0);
+    let cur = Number(player.currentTime || 0);
     
-    //   Check If This is Explicitly a YouTube Live Stream
-    let isYtLive = (player.provider === 'youtube' && player.embed && typeof player.embed.getVideoData === 'function' && player.embed.getVideoData().isLive);
+    let isYtLive = false;
+
+    //   👇🏻  YOUTUBE IFRAME API OVERRIDE  :  Plyr Often Fails To Sync Durations For YT Live .  We Extract It Natively .
+    if (player.provider === 'youtube' && player.embed) {
+        if (typeof player.embed.getVideoData === 'function') {
+            isYtLive = player.embed.getVideoData().isLive || false;
+        }
+        if (typeof player.embed.getDuration === 'function') {
+            const ytDur = Number(player.embed.getDuration() || 0);
+            if (ytDur > 0) dur = ytDur;
+        }
+        if (typeof player.embed.getCurrentTime === 'function') {
+            const ytCur = Number(player.embed.getCurrentTime() || 0);
+            if (ytCur > 0) cur = ytCur;
+        }
+    }
 
     //   👇🏻  DYNAMIC SESSION CARD FIX
     if (dur > 0) {
+        //   Force Metadata Loaded State If We Successfully Found a Duration
         if (!isMetadataLoaded) {
             isMetadataLoaded = true;
-            if (!player.paused && !isBufferingOrSeeking) {
-                startSessionTimer();
-                setSessionDotState("playing");
-            }
         }
-        //   👇🏻  TOTAL DURATION FIX  :  Allow YouTube Live To Dynamically Show Actual Live Running Time  ( e.g. ,  11:00:00:00 )
-        //   We Only Override To  " Live Stream "  If The Duration is Literally Infinity  ( Like iOS Native HLS ) .
+        
+        //   👇🏻  TIMER SAFETY NET  :  If Video is Playing But The Watched Timer is Stuck at 00:00 ,  Kickstart It !!
+        if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
+            startSessionTimer();
+            setSessionDotState("playing");
+        }
+        
+        //   👇🏻  TOTAL DURATION FIX  :  Format The Actual  11 + Hours  For YouTube Live
         if (dur === Infinity) {
             document.getElementById("sessionTotalDuration").textContent = "Live Stream";
         } else {
@@ -2226,6 +2243,7 @@ window.startSessionTracking = function() {
         }
     }
 
+    //   If Duration is Still 0  ( Network Hasn't Loaded Yet ) ,  Do Not Execute Math That Breaks UI
     if (!dur || !isFinite(dur) || dur === 0) {
       checkLiveDrift(cur, dur, isYtLive);
       return;
@@ -2266,6 +2284,7 @@ window.startSessionTracking = function() {
     
     checkLiveDrift(cur, dur, isYtLive);
   }
+  
 
   function checkLiveDrift(cur, dur, isYtLive) {
     const liveIndicator = document.getElementById('liveIndicator');
