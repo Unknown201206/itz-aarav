@@ -1167,7 +1167,7 @@ if (provider === "youtube" && videoID) {
 } else if (provider === "html5" && video) {
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
-      <video id="player" controls class="rounded w-full h-full" style="background:black;">
+      <video id="player" class="rounded w-full h-full" style="background:black;">
         <source src="${decodeURIComponent(video)}" type="video/mp4" />
       </video>
       <div id="gestureLeft" class="gesture-zone"></div>
@@ -1182,9 +1182,10 @@ if (provider === "youtube" && videoID) {
   }, 500);
 } else if (provider === "hls" && video) {
   //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
+  //   👇🏻  NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute So Android Chrome Doesn't Flash Its Native UI
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
-      <video id="player" controls class="rounded w-full h-full" style="background:black;" playsinline></video>
+      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
@@ -1196,6 +1197,7 @@ if (provider === "youtube" && videoID) {
       disableGesturesWhileMenusOpen();
   }, 500);
 }
+
 
 //   Ensure Gesture Zones Never Overlap The Controls
 function syncGestureZoneBottomToControls() {
@@ -1261,12 +1263,24 @@ function initAllPlayerEvents(plyrInstance) {
   player.on('error', hideCustomLoader);
   player.on('loadeddata', hideCustomLoader);
 
-  //   Fallback  :  YouTube API Sometimes Fails To Clear Loaders Automatically
+  //   👇🏻  YOUTUBE LOADER FIX  :  Map YouTube's Internal States Directly To Our Custom Loader
   player.on('statechange', (event) => {
-    if (event.detail.code === 1 || event.detail.code === 2) {
+    //   YouTube State 3  =  Buffering  ( Force Our Custom Loader Over Google's )
+    if (event.detail.code === 3) {
+      showCustomLoader();
+    } 
+    //   YouTube State 1 = Playing, 2 = Paused (Hide our loader)
+    else if (event.detail.code === 1 || event.detail.code === 2) {
       hideCustomLoader();
     }
   });
+
+  //   👇🏻  PLAY CLICK FIX  :  If User Clicks Play ,  Instantly Show Our Spinner Until  ' playing '  Fires
+  player.on('play', () => {
+    if (!player.playing) showCustomLoader();
+  });
+  player.on('pause', hideCustomLoader);      //   Safety Net
+
 
   //   Only Force The Loader Initially For HLS Streams That  Auto - Buffer
   if (provider === 'hls') {
@@ -1335,7 +1349,7 @@ function initAllPlayerEvents(plyrInstance) {
 //   Check Provider & Initialize
 if (provider === "hls" && videoElement) {
   const sourceUrl = decodeURIComponent(video);
-  console.log("[INIT] Starting HLS logic for:", sourceUrl);
+  // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
 
   //   Safe Global Fallback To Hide The Loader If The Network Fails Early
   function forceHideLoader() {
@@ -1354,7 +1368,7 @@ if (provider === "hls" && videoElement) {
               //   Force All Absolute Heroku  Sub - Manifests  Back Through The Vercel Proxy
               if (url.includes('live-server-h-3fd3ea6270f5.herokuapp.com')) {
                   arguments[1] = url.replace('https://live-server-h-3fd3ea6270f5.herokuapp.com', '/stream-proxy');
-                  console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);
+                  //   console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);      <--   ( Silenced )
               }
           }
           return origOpen.apply(this, arguments);
@@ -1369,12 +1383,12 @@ if (provider === "hls" && videoElement) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
         
-        //   Track Network Responses To See Exactly What  Succeeds / Fails
+        //   Track Network Responses To See Exactly What  Succeeds / Fails  ( REMOVED LOGS FOR UI PERFORMANCE )
         xhr.addEventListener('loadend', () => {
           if (xhr.status >= 400 || xhr.status === 0) {
-            console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+            //   console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
           } else if (url.includes('.m3u8')) {
-            console.log(`[MANIFEST SUCCESS] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+            //   console.log(`[MANIFEST SUCCESS] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
           }
         });
       }
@@ -1392,7 +1406,7 @@ if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
-      console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);
+      //   console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);      <--   ( Silenced )
       if (data.fatal) {
         forceHideLoader();       //   Safely Hide Loader Using The Global Function
         
@@ -1417,25 +1431,29 @@ if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-      console.log(`[HLS READY] Manifest parsed. Found ${data.levels.length} qualities.`);
       
-      //   👇🏻  MOBILE AUTOPLAY EXPLOIT  :  Start Muted To Bypass  Apple / Google  Restrictions
-      videoElement.muted = true;
+      //   👇🏻  SMART AUTOPLAY  :  Attempt To Play Normally With Sound First  ( Uses Google's MEI Trust Score )
+      videoElement.muted = false;
       videoElement.play().then(() => {
-          console.log("[AUTOPLAY] Started muted.");
-          showToast("Tap anywhere to unmute 🔊");
-          
-          // The moment the user touches the screen, blast the volume back to 100%
-          const unmuteHandler = () => {
-              videoElement.muted = false;
-              if(window.player) window.player.volume = 1;
-              document.removeEventListener('touchstart', unmuteHandler);
-              document.removeEventListener('click', unmuteHandler);
-          };
-          document.addEventListener('touchstart', unmuteHandler);
-          document.addEventListener('click', unmuteHandler);
-      }).catch(err => {
-          console.warn("[AUTOPLAY BLOCKED]", err.message);
+          //   Browser Allowed Unmuted Autoplay !!  Do Nothing Else .
+      }).catch((err) => {
+          //   Browser Blocked Unmuted Autoplay .  Fall Back To The Muted Exploit .
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+              showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+              
+              //   The Moment The User Touches The Screen ,  Just Unmute  ( No 100% Volume Jump )
+              const unmuteHandler = () => {
+                  videoElement.muted = false;
+                  document.removeEventListener('touchstart', unmuteHandler);
+                  document.removeEventListener('click', unmuteHandler);
+              };
+              //   Use  { once: true }  So The Listener Automatically Kills Itself After  1 Tap
+              document.addEventListener('touchstart', unmuteHandler, { once: true });
+              document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(e => {
+              //   Silently Ignore If Browser is Excessively Strict
+          });
       });
 
       const availableQualities = hls.levels.map((l) => l.height);
@@ -1467,6 +1485,26 @@ if (provider === "hls" && videoElement) {
   //   Immediate Load For  Youtube & HTML5
   const plyrInstance = new Plyr('#player', plyrConfig);
   initAllPlayerEvents(plyrInstance);
+  
+  //   👇🏻  HTML5 SMART AUTOPLAY  :  Try Unmuted First ,  Fallback To Muted  ( Same as HLS )
+  if (provider === "html5" && videoElement) {
+      videoElement.muted = false;
+      videoElement.play().then(() => {
+          //   Browser Allowed Unmuted Autoplay Based On MEI !!
+      }).catch(() => {
+          //   Fallback To Muted Exploit
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+              showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+              const unmuteHandler = () => {
+                  videoElement.muted = false;
+                  //   Respect Device Volume ,  No  100 %  Jump
+              };
+              document.addEventListener('touchstart', unmuteHandler, { once: true });
+              document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(err => {});
+      });
+  }
 }
 
 
@@ -2067,7 +2105,7 @@ window.startSessionTracking = function() {
     }
   });
 
-  //v  Plyr Events  :  Play / Pause / Ended
+  //   Plyr Events  :  Play / Pause / Ended
   window.player.on("play", () => {
     setSessionDotState("playing");
     if (isMetadataLoaded && !isBufferingOrSeeking) startSessionTimer();
@@ -2304,15 +2342,13 @@ window.startSessionTracking = function() {
       
       const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
 
-      console.log(`[LIVE JUMP CLICKED] isYtLive: ${isYtLive} | Current: ${window.player.currentTime} | Duration: ${window.player.duration}`);
-
+      //   ( Logs Removed For Performance )
+      
       if (window.hls && window.hls.liveSyncPosition) {
-        console.log(`[HLS JUMP] Seeking to ${window.hls.liveSyncPosition}`);
         window.player.currentTime = window.hls.liveSyncPosition;
       } else if (isYtLive && window.player.duration) {
         //   👇🏻  YOUTUBE JUMP BYPASS  :  Instead of Calculating Math That Breaks The Iframe , 
         //   We Execute YouTube's Native Embed API Directly .  It Clamps To The Safest Live Edge Natively .
-        console.log(`[YT JUMP] Executing native embed seekTo(duration).`);
         if (window.player.embed && window.player.embed.seekTo) {
            window.player.embed.seekTo(window.player.duration, true);
         } else {
@@ -2323,6 +2359,7 @@ window.startSessionTracking = function() {
       }
     });
   }
+
   
   //   👇🏻  WRAP PROGRESS EVENTS TO WAIT FOR PLAYER INITIALIZATION
   window.startProgressTracking = function() {
