@@ -1152,7 +1152,7 @@ if (provider === "youtube" && videoID) {
     <div class="relative aspect-video rounded w-full h-full">
       <div class="plyr__video-embed" id="player">
         <iframe
-          src="https://www.youtube.com/embed/${videoID}?autoplay=0&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&playsinline=1&enablejsapi=1"
+          src="https://www.youtube.com/embed/${videoID}?autoplay=0&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&playsinline=1&enablejsapi=1&controls=0&showinfo=0"
           allowfullscreen allow="autoplay; encrypted-media"></iframe>
       </div>
       <div id="gestureLeft" class="gesture-zone"></div>
@@ -1217,7 +1217,8 @@ const plyrConfig = {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
   },
-  youtube: { modestbranding: 1, rel: 0, noCookie: true }
+  //   👇🏻  YOUTUBE UI FIX  :  Forcing Plyr To Enforce The  Zero - Controls  Policy
+  youtube: { modestbranding: 1, rel: 0, noCookie: true, controls: 0, iv_load_policy: 3, showinfo: 0 }
 };
 
 //   We Wrap All Event Listeners in a Function So They Wait For Dynamic Qualities To Load
@@ -2098,8 +2099,11 @@ window.startSessionTracking = function() {
 
   //   Plyr Events  :  Play / Pause / Ended
   window.player.on("play", () => {
+    //   👇🏻  TIMER FIX  :  YouTube Suppresses Loadedmetadata Events On Live Streams .
+    //   If The Video is Physically Playing ,  We Force  isMetadataLoaded  To True .
+    isMetadataLoaded = true; 
     setSessionDotState("playing");
-    if (isMetadataLoaded && !isBufferingOrSeeking) startSessionTimer();
+    if (!isBufferingOrSeeking) startSessionTimer();
   });
 
   window.player.on("pause", () => {
@@ -2223,33 +2227,39 @@ window.startSessionTracking = function() {
     }
 
     //   👇🏻  DYNAMIC SESSION CARD FIX
-    if (dur > 0) {
-        //   Force Metadata Loaded State If We Successfully Found a Duration
-        if (!isMetadataLoaded) {
-            isMetadataLoaded = true;
-        }
+    //   We Now Execute This Block If  Duration > 0 ,  OR If It's a YouTube Live Stream ,  OR If Current Time is Advancing .
+    if (dur > 0 || isYtLive || cur > 0) {
+        if (!isMetadataLoaded) isMetadataLoaded = true;
         
-        //   👇🏻  TIMER SAFETY NET  :  If Video is Playing But The Watched Timer is Stuck at 00:00 ,  Kickstart It !!
+        //   👇🏻  TIMER SAFETY NET  :  Kickstart The Clock If Paused State is False
         if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
             startSessionTimer();
             setSessionDotState("playing");
         }
         
-        //   👇🏻  TOTAL DURATION FIX  :  Format The Actual  11 + Hours  For YouTube Live
-        if (dur === Infinity) {
+        //   👇🏻  TOTAL DURATION FIX  :  Handle YouTube's 0 duration or Infinity Native duration
+        if (isYtLive) {
+            if (dur > 0) {
+                document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
+            } else {
+                //   If Google Absolutely Refuses To Supply a Duration ,  Print Live Stream
+                document.getElementById("sessionTotalDuration").textContent = "Live Stream";
+            }
+        } else if (dur === Infinity) {
             document.getElementById("sessionTotalDuration").textContent = "Live Stream";
         } else {
             document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
         }
     }
 
-    //   If Duration is Still 0  ( Network Hasn't Loaded Yet ) ,  Do Not Execute Math That Breaks UI
-    if (!dur || !isFinite(dur) || dur === 0) {
+    //   👇🏻  EARLY EXIT TRAP FIX  :  We ONLY Quit Early If It is a Standard VOD & Duration is 0 . 
+    //   Live Streams Bypass This Trap Entirely So The UI Can Update .
+    if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
       checkLiveDrift(cur, dur, isYtLive);
       return;
     }
 
-    let frac = Math.max(0, Math.min(1, cur / dur));
+    let frac = (dur > 0) ? Math.max(0, Math.min(1, cur / dur)) : 1;
     let watchedPct = frac * 100;
     let remPct = 100 - watchedPct;
 
