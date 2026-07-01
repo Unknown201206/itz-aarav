@@ -1088,7 +1088,7 @@
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
 
-<!--   DEBUG  BOX
+<!--   DEBUG  BOX   -->
 <div class="text-center">
   <h2 class="text-lg sm:text-xl md:text-2xl font-bold font-bold">AaRAv OffiCiaL</h2>
 </div>
@@ -1116,7 +1116,7 @@
   console.warn = function(...args) { origWarn(...args); printLog('WARN: ' + args.join(' '), '#ffaa00'); };
   console.error = function(...args) { origErr(...args); printLog('ERROR: ' + args.join(' '), '#ff5555'); };
   window.onerror = function(msg, url, line) { printLog(`FATAL: ${msg} (Line: ${line})`, '#ff5555'); };
-</script>    --->
+</script>    
 
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
@@ -2086,10 +2086,12 @@ function exitBuffering() {
 
 //   👇🏻  WRAP ALL SESSION EVENTS IN A FUNCTION SO THEY WAIT FOR PLAYER TO INITIALIZE
 window.startSessionTracking = function() {
+  console.log("[DEBUG] Session Tracking successfully booted.");
   
   //   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
   window.player.media?.addEventListener('loadedmetadata', () => {
     isMetadataLoaded = true;
+    console.log("[DEBUG] Native loadedmetadata fired. Duration:", window.player.duration);
     if (window.player.duration) {
       const totalMs = Math.floor(window.player.duration * 1000);
       sessionTotalDuration.textContent = formatSessionTime(totalMs);
@@ -2105,12 +2107,17 @@ window.startSessionTracking = function() {
   window.player.on("play", () => {
     //   👇🏻  TIMER FIX  :  YouTube Suppresses Loadedmetadata Events On Live Streams .
     //   If The Video is Physically Playing ,  We Force  isMetadataLoaded  To True .
+    console.log("[DEBUG] Player 'play' event triggered. Forcing metadata load state to true.");
     isMetadataLoaded = true; 
     setSessionDotState("playing");
-    if (!isBufferingOrSeeking) startSessionTimer();
+    if (!isBufferingOrSeeking) {
+        startSessionTimer();
+        console.log("[DEBUG] Session timer explicitly started via 'play' event.");
+    }
   });
 
   window.player.on("pause", () => {
+    console.log("[DEBUG] Player paused. Stopping timer.");
     setSessionDotState("paused");
     stopSessionTimer();
   });
@@ -2215,12 +2222,16 @@ window.startSessionTracking = function() {
   }
 
 
+  //   👇🏻  THROTTLED LOGGER  :  Prevents The Debug Box From Crashing Your Browser While Constantly Updating
+  let lastDebugLogTime = 0;
+
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
     let dur = Number(player.duration || 0);
     let cur = Number(player.currentTime || 0);
     
     let isYtLive = false;
+    let scrapeTriggered = false;
 
     //   👇🏻  YOUTUBE IFRAME API OVERRIDE 
     if (player.provider === 'youtube' && player.embed) {
@@ -2237,17 +2248,36 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   👇🏻  THE NUCLEAR FALLBACK  :  If Google's API Refuses To Provide a Duration ,  Scrape It Visually From Plyr's UI !!
-    if (dur === 0) {
-        const uiDurEl = document.querySelector('.plyr__time--duration');
-        if (uiDurEl && uiDurEl.textContent) {
-            const parts = uiDurEl.textContent.replace(/-/g, '').trim().split(':').reverse();
-            let scrapedSecs = 0;
-            if (parts[0]) scrapedSecs += parseInt(parts[0], 10) || 0;
-            if (parts[1]) scrapedSecs += (parseInt(parts[1], 10) || 0) * 60;
-            if (parts[2]) scrapedSecs += (parseInt(parts[2], 10) || 0) * 3600;
-            if (scrapedSecs > 0) dur = scrapedSecs;
+    //   👇🏻  THE  OMNI - SCRAPER  FALLBACK  :  If Google's API Gives 0 ,  Scan Every Time Element On The Screen For The Highest Number
+    if (dur === 0 || isYtLive) {
+        let maxScraped = 0;
+        //   Scan Both Current Time & Duration UI Elements Because Plyr Moves Text Randomly On Live Streams
+        const timeEls = document.querySelectorAll('.plyr__time'); 
+        timeEls.forEach(el => {
+            if (el && el.textContent) {
+                const parts = el.textContent.replace(/-/g, '').trim().split(':').reverse();
+                let secs = 0;
+                if (parts[0]) secs += parseInt(parts[0], 10) || 0;
+                if (parts[1]) secs += (parseInt(parts[1], 10) || 0) * 60;
+                if (parts[2]) secs += (parseInt(parts[2], 10) || 0) * 3600;
+                if (secs > maxScraped) maxScraped = secs;
+            }
+        });
+        
+        if (maxScraped > 0) {
+            scrapeTriggered = true;
+            //   For Live Streams ,  The Highest Visible Time is The Current Running Duration
+            dur = Math.max(dur, maxScraped);
+            //   Force  ' cur '  To Match So The math Doesn't Break
+            if (cur === 0) cur = maxScraped; 
         }
+    }
+
+    //   👇🏻  DEBUG OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
+    const now = Date.now();
+    if (now - lastDebugLogTime > 4000) {
+        console.log(`[STATE] isYtLive:${isYtLive} | dur:${dur} | cur:${cur} | scraped:${scrapeTriggered} | paused:${player.paused}`);
+        lastDebugLogTime = now;
     }
 
     //   👇🏻  DYNAMIC SESSION CARD FIX
@@ -2258,6 +2288,7 @@ window.startSessionTracking = function() {
         if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
             startSessionTimer();
             setSessionDotState("playing");
+            console.log("[DEBUG] Fallback session timer activated via progress loop.");
         }
         
         //   Format The Actual Total Duration
