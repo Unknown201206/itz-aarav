@@ -1325,6 +1325,10 @@ function initAllPlayerEvents(plyrInstance) {
       console.warn("Skip init error", err);
     }
   });
+
+  //   👇🏻  Boot Up Custom UI Tracking Only After Player is Ready To Prevent Fatal Crashes
+  if (typeof window.startSessionTracking === 'function') window.startSessionTracking();
+  if (typeof window.startProgressTracking === 'function') window.startProgressTracking();
 }
 
 //   Check Provider & Initialize
@@ -1981,99 +1985,96 @@ function exitBuffering() {
   }
 }
 
-//   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
-player.media?.addEventListener('loadedmetadata', () => {
-  isMetadataLoaded = true;
-  if (player.duration) {
-    const totalMs = Math.floor(player.duration * 1000);
-    sessionTotalDuration.textContent = formatSessionTime(totalMs);
-  }
-  //   If Already Playing When Metadata Arrives ,  Start Timer  ( Unless Buffering )
-  if (!player.paused && !isBufferingOrSeeking) {
-    startSessionTimer();
+
+//   👇🏻  WRAP ALL SESSION EVENTS IN A FUNCTION SO THEY WAIT FOR PLAYER TO INITIALIZE
+window.startSessionTracking = function() {
+  
+  //   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
+  window.player.media?.addEventListener('loadedmetadata', () => {
+    isMetadataLoaded = true;
+    if (window.player.duration) {
+      const totalMs = Math.floor(window.player.duration * 1000);
+      sessionTotalDuration.textContent = formatSessionTime(totalMs);
+    }
+    //   If Already Playing When Metadata Arrives ,  Start Timer
+    if (!window.player.paused && !isBufferingOrSeeking) {
+      startSessionTimer();
+      setSessionDotState("playing");
+    }
+  });
+
+  //v  Plyr Events  :  Play / Pause / Ended
+  window.player.on("play", () => {
     setSessionDotState("playing");
-  }
-});
+    if (isMetadataLoaded && !isBufferingOrSeeking) startSessionTimer();
+  });
 
-//   Plyr Events  :  Play / Pause / Ended
-player.on("play", () => {
-  //   Don't Start If We're in Buffering State
-  setSessionDotState("playing");
-  if (isMetadataLoaded && !isBufferingOrSeeking) startSessionTimer();
-});
+  window.player.on("pause", () => {
+    setSessionDotState("paused");
+    stopSessionTimer();
+  });
 
-player.on("pause", () => {
-  setSessionDotState("paused");
-  stopSessionTimer();
-});
+  window.player.on("ended", () => {
+    setSessionDotState("paused");
+    stopSessionTimer();
+  });
 
-player.on("ended", () => {
-  setSessionDotState("paused");
-  stopSessionTimer();
-});
+  //   Buffer / Seeking  Related Events  ( Plyr - Level )
+  window.player.on("seeking", enterBuffering);
+  window.player.on("waiting", enterBuffering);
+  window.player.on("stalled", enterBuffering);
 
-//   Buffer / Seeking  Related Events  ( Plyr - Level )
-player.on("seeking", enterBuffering);
-player.on("waiting", enterBuffering);
-player.on("stalled", enterBuffering);
+  //   When Playback Actually Resumes ,  Clear Buffering State
+  window.player.on("playing", exitBuffering);
+  window.player.on("canplay", exitBuffering);
+  window.player.on("canplaythrough", exitBuffering);
 
-//   When Playback Actually Resumes ,  Clear Buffering State
-player.on("playing", exitBuffering);
-player.on("canplay", exitBuffering);
-player.on("canplaythrough", exitBuffering);
-
-//   Seeked is Sometimes Emitted Before  Playing / Canplay  ;  Try To Recover Gracefully
-player.on("seeked", () => {
-  //   If It Becomes Playing Shortly After Seek ,  exitBuffering Will Be Called By  ' Playing ' .
-  //   But in Some Cases The Player is Already Playing After Seek ;  Handle That .
-  setTimeout(() => {
-    if (!player.paused) exitBuffering();
-  }, 250);
-});
-
-//   Also Attach Native Media Events Where Available  ( HTML5 path )
-if (player.media) {
-  player.media.addEventListener('seeking', enterBuffering);
-  player.media.addEventListener('waiting', enterBuffering);
-  player.media.addEventListener('stalled', enterBuffering);
-  player.media.addEventListener('playing', exitBuffering);
-  player.media.addEventListener('canplay', exitBuffering);
-  player.media.addEventListener('canplaythrough', exitBuffering);
-  player.media.addEventListener('seeked', () => {
+  //   Seeked is Sometimes Emitted Before  Playing / Canplay
+  window.player.on("seeked", () => {
     setTimeout(() => {
-      if (!player.paused) exitBuffering();
+      if (!window.player.paused) exitBuffering();
     }, 250);
   });
-}
 
-//   WATCHDOG  :  Detect  " Time Not Advancing While Player Claims to Be Playing "
-//   This Helps With Providers  ( YouTube iframe )  Where Events or readyState May Be Unreliable .
-if (watchdogIntervalId) clearInterval(watchdogIntervalId);
-watchdogIntervalId = setInterval(() => {
-  if (!isMetadataLoaded) return;
-
-  //   If Paused or Ended ,  Reset Tracking
-  if (player.paused || player.ended) {
-    lastObservedTime = Number(player.currentTime || 0);
-    timeStuckSince = null;
-    return;
+  //   Also Attach Native Media Events Where Available  ( HTML5 Path )
+  if (window.player.media) {
+    window.player.media.addEventListener('seeking', enterBuffering);
+    window.player.media.addEventListener('waiting', enterBuffering);
+    window.player.media.addEventListener('stalled', enterBuffering);
+    window.player.media.addEventListener('playing', exitBuffering);
+    window.player.media.addEventListener('canplay', exitBuffering);
+    window.player.media.addEventListener('canplaythrough', exitBuffering);
+    window.player.media.addEventListener('seeked', () => {
+      setTimeout(() => {
+        if (!window.player.paused) exitBuffering();
+      }, 250);
+    });
   }
 
-  const cur = Number(player.currentTime || 0);
-  //   Time Hasn't Advanced Enough
-  if (Math.abs(cur - lastObservedTime) < 0.05) {
-    if (!timeStuckSince) timeStuckSince = Date.now();
-    else if (Date.now() - timeStuckSince > TIME_STUCK_THRESHOLD_MS) {
-      //   Treat as Buffering
-      enterBuffering();
+  //   WATCHDOG  :  Detect  " Time Not Advancing While Player Claims to Be Playing "
+  if (watchdogIntervalId) clearInterval(watchdogIntervalId);
+  watchdogIntervalId = setInterval(() => {
+    if (!isMetadataLoaded) return;
+
+    if (window.player.paused || window.player.ended) {
+      lastObservedTime = Number(window.player.currentTime || 0);
+      timeStuckSince = null;
+      return;
     }
-  } else {
-    //   Time is Advancing
-    timeStuckSince = null;
-    if (isBufferingOrSeeking) exitBuffering();
-  }
-  lastObservedTime = cur;
-}, WATCHDOG_INTERVAL_MS);
+
+    const cur = Number(window.player.currentTime || 0);
+    if (Math.abs(cur - lastObservedTime) < 0.05) {
+      if (!timeStuckSince) timeStuckSince = Date.now();
+      else if (Date.now() - timeStuckSince > TIME_STUCK_THRESHOLD_MS) {
+        enterBuffering();
+      }
+    } else {
+      timeStuckSince = null;
+      if (isBufferingOrSeeking) exitBuffering();
+    }
+    lastObservedTime = cur;
+  }, WATCHDOG_INTERVAL_MS);
+};
 
 //   End Improved Session Logic
 
@@ -2235,27 +2236,33 @@ watchdogIntervalId = setInterval(() => {
   const liveInd = document.getElementById('liveIndicator');
   if (liveInd) {
     liveInd.addEventListener('click', () => {
+      if (!window.player) return;
+      
+      const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
+
       if (window.hls && window.hls.liveSyncPosition) {
-        player.currentTime = window.hls.liveSyncPosition;
-      } else if (player.duration && player.duration !== Infinity) {
-        player.currentTime = player.duration;
+        window.player.currentTime = window.hls.liveSyncPosition;
+      } else if (isYtLive && window.player.duration) {
+        //   👇🏻  YOUTUBE JUMP FIX  :  We Must Jump To  70 Seconds Behind The Math Edge To Prevent Endless Spinning
+        window.player.currentTime = Math.max(0, window.player.duration - 70);
+      } else if (window.player.duration && window.player.duration !== Infinity) {
+        window.player.currentTime = window.player.duration;
       }
     });
   }
   
-  //   Init
-  setInitialUI();
-
-  //   Attach Events
-  player.on('timeupdate', updateProgressFromPlayer);
-  player.on('play', updateProgressFromPlayer);
-  player.on('seeked', updateProgressFromPlayer);
-  player.on('loadedmetadata', updateProgressFromPlayer);
-  player.on('ended', updateProgressFromPlayer);
-
-  //   Safety Update
-  setTimeout(updateProgressFromPlayer, 80);
+  //   👇🏻  WRAP PROGRESS EVENTS TO WAIT FOR PLAYER INITIALIZATION
+  window.startProgressTracking = function() {
+    setInitialUI();
+    window.player.on('timeupdate', updateProgressFromPlayer);
+    window.player.on('play', updateProgressFromPlayer);
+    window.player.on('seeked', updateProgressFromPlayer);
+    window.player.on('loadedmetadata', updateProgressFromPlayer);
+    window.player.on('ended', updateProgressFromPlayer);
+    setTimeout(updateProgressFromPlayer, 80);
+  };
 })();
+
 
 //   🎊  Water Wave Effect Under Info Cards  ( Final Version )
 //   -  Smooth Continuous Wave Animation  ( No Jitter )
