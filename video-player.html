@@ -1334,6 +1334,7 @@ function initAllPlayerEvents(plyrInstance) {
 //   Check Provider & Initialize
 if (provider === "hls" && videoElement) {
   const sourceUrl = decodeURIComponent(video);
+  console.log("[INIT] Starting HLS logic for:", sourceUrl);
 
   if (Hls.isSupported()) {
     const hls = new Hls({ 
@@ -1343,6 +1344,15 @@ if (provider === "hls" && videoElement) {
         if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
+        
+        //   👇🏻  HEAVY DEBUGGING  :  Track Every Exact Network Response To See Why Heroku is Failing
+        xhr.addEventListener('loadend', () => {
+          if (xhr.status >= 400) {
+            console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 65)}...`);
+          } else if (url.includes('.m3u8')) {
+            console.log(`[MANIFEST SUCCESS] Connected to Heroku. Status: ${xhr.status}`);
+          }
+        });
       }
     });
     
@@ -1358,25 +1368,46 @@ if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
+      console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);
+      if (data.response) console.error(`[HTTP CODE] ${data.response.code}`);
+      
       if (data.fatal) {
         hideCustomLoader(); 
+        //   Ensure UI Builds Even On Failure So It Doesn't Spin Forever
+        if (!window.player) {
+          const plyrInstance = new Plyr('#player', plyrConfig);
+          initAllPlayerEvents(plyrInstance);
+        }
         switch (data.type) {
-          case Hls.ErrorTypes.NETWORK_ERROR: hls.destroy(); break;
-          case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
-          default: hls.destroy(); break;
+          case Hls.ErrorTypes.NETWORK_ERROR: 
+            console.error("FATAL: Heroku is dropping the connection. (Likely a 403 IP block against Vercel)");
+            hls.destroy(); 
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR: 
+            hls.recoverMediaError(); 
+            break;
+          default: 
+            hls.destroy(); 
+            break;
         }
       }
     });
 
     //   👇🏻  EXTRACT DYNAMIC QUALITIES HERE  👇🏻
     hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-      //   Pull Available Resolutions From The Stream
+      console.log(`[HLS READY] Manifest parsed. Found ${data.levels.length} qualities.`);
+      
+      //   👇🏻  AUTOPLAY FIX  :  Force Video To Play Automatically So User Doesn't Have To Tap
+      videoElement.play().then(() => {
+          console.log("[AUTOPLAY] Success! Video started automatically.");
+      }).catch((err) => {
+          console.warn("[AUTOPLAY BLOCKED] Mobile browser strict policy requires a physical tap: " + err.message);
+      });
+
       const availableQualities = hls.levels.map((l) => l.height);
-      //   Remove Duplicates & Sort Highest To Lowest
       const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
       uniqueQualities.unshift(0);       //   0 Acts as  " Auto "
       
-      //   Inject Dynamically Extracted Qualities Into Plyr Setup
       plyrConfig.quality = {
         default: 0,
         options: uniqueQualities,
@@ -1387,7 +1418,6 @@ if (provider === "hls" && videoElement) {
         }
       };
 
-      //   Boot Player Only After Qualities Are Mapped
       const plyrInstance = new Plyr('#player', plyrConfig);
       initAllPlayerEvents(plyrInstance);
     });
@@ -2240,11 +2270,20 @@ window.startSessionTracking = function() {
       
       const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
 
+      console.log(`[LIVE JUMP CLICKED] isYtLive: ${isYtLive} | Current: ${window.player.currentTime} | Duration: ${window.player.duration}`);
+
       if (window.hls && window.hls.liveSyncPosition) {
+        console.log(`[HLS JUMP] Seeking to ${window.hls.liveSyncPosition}`);
         window.player.currentTime = window.hls.liveSyncPosition;
       } else if (isYtLive && window.player.duration) {
-        //   👇🏻  YOUTUBE JUMP FIX  :  We Must Jump To  70 Seconds Behind The Math Edge To Prevent Endless Spinning
-        window.player.currentTime = Math.max(0, window.player.duration - 70);
+        //   👇🏻  YOUTUBE JUMP BYPASS  :  Instead of Calculating Math That Breaks The Iframe , 
+        //   We Execute YouTube's Native Embed API Directly .  It Clamps To The Safest Live Edge Natively .
+        console.log(`[YT JUMP] Executing native embed seekTo(duration).`);
+        if (window.player.embed && window.player.embed.seekTo) {
+           window.player.embed.seekTo(window.player.duration, true);
+        } else {
+           window.player.currentTime = window.player.duration;
+        }
       } else if (window.player.duration && window.player.duration !== Infinity) {
         window.player.currentTime = window.player.duration;
       }
