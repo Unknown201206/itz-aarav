@@ -1335,24 +1335,29 @@ function initAllPlayerEvents(plyrInstance) {
 //   Check Provider & Initialize
 if (provider === "hls" && videoElement) {
   const sourceUrl = decodeURIComponent(video);
+  console.log("[INIT] Starting HLS logic for:", sourceUrl);
 
-  //   👇🏻  THE ULTIMATE CORS HACK  :  Global XHR Interceptor
-  //   This Hijacks All Network Requests From  hls.js  Before They Leave The Browser .
+  //   Safe Global Fallback To Hide The Loader If The Network Fails Early
+  function forceHideLoader() {
+    const loader = document.getElementById('playerLoader');
+    if (loader) loader.classList.remove('show');
+  }
+
+  //   👇🏻  THE ULTIMATE CORS HACK  :  Global XHR Interceptor  ( FIXED CRASH BUG )
   if (!window.xhrPatched) {
       window.xhrPatched = true;
       const origOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-          if (typeof url === 'string') {
-              //   1.  Force All Absolute Heroku  Sub - Manifests  Back Through The Vercel Proxy
+      //   Using  ' arguments '  Object Safely Prevents The Native Browser Crash
+      XMLHttpRequest.prototype.open = function() {
+          if (typeof arguments[1] === 'string') {
+              let url = arguments[1];
+              //   Force All Absolute Heroku  Sub - Manifests  Back Through The Vercel Proxy
               if (url.includes('live-server-h-3fd3ea6270f5.herokuapp.com')) {
-                  url = url.replace('https://live-server-h-3fd3ea6270f5.herokuapp.com', '/stream-proxy');
-              }
-              //   2.  If Video Chunks Are Hosted On AWS Cloudfront & Fail CORS ,  Proxy Them Dynamically
-              else if (url.includes('cloudfront.net') && !url.includes('corsproxy')) {
-                  url = 'https://corsproxy.io/?' + encodeURIComponent(url);
+                  arguments[1] = url.replace('https://live-server-h-3fd3ea6270f5.herokuapp.com', '/stream-proxy');
+                  console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);
               }
           }
-          return origOpen.call(this, method, url, async, user, password);
+          return origOpen.apply(this, arguments);
       };
   }
 
@@ -1363,6 +1368,15 @@ if (provider === "hls" && videoElement) {
         if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
+        
+        //   Track Network Responses To See Exactly What  Succeeds / Fails
+        xhr.addEventListener('loadend', () => {
+          if (xhr.status >= 400 || xhr.status === 0) {
+            console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+          } else if (url.includes('.m3u8')) {
+            console.log(`[MANIFEST SUCCESS] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+          }
+        });
       }
     });
     
@@ -1378,12 +1392,16 @@ if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
+      console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);
       if (data.fatal) {
-        hideCustomLoader(); 
+        forceHideLoader();       //   Safely Hide Loader Using The Global Function
+        
+        //   Ensure UI Builds Even On Failure So It Doesn't Spin Forever
         if (!window.player) {
           const plyrInstance = new Plyr('#player', plyrConfig);
           initAllPlayerEvents(plyrInstance);
         }
+        
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR: 
             hls.destroy(); 
@@ -1399,13 +1417,15 @@ if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+      console.log(`[HLS READY] Manifest parsed. Found ${data.levels.length} qualities.`);
       
       //   👇🏻  MOBILE AUTOPLAY EXPLOIT  :  Start Muted To Bypass  Apple / Google  Restrictions
       videoElement.muted = true;
       videoElement.play().then(() => {
+          console.log("[AUTOPLAY] Started muted.");
           showToast("Tap anywhere to unmute 🔊");
           
-          //   The Moment The User Touches The Screen ,  Blast The Volume Back To 100%
+          // The moment the user touches the screen, blast the volume back to 100%
           const unmuteHandler = () => {
               videoElement.muted = false;
               if(window.player) window.player.volume = 1;
@@ -1415,7 +1435,7 @@ if (provider === "hls" && videoElement) {
           document.addEventListener('touchstart', unmuteHandler);
           document.addEventListener('click', unmuteHandler);
       }).catch(err => {
-          //   Fallback If Browser is Excessively Strict
+          console.warn("[AUTOPLAY BLOCKED]", err.message);
       });
 
       const availableQualities = hls.levels.map((l) => l.height);
