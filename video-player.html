@@ -1145,6 +1145,7 @@ if (title) {
 
 const wrapper = document.getElementById("playerWrapper");
 
+
 //   Main Player Load & Gesture Zone Injection
 if (provider === "youtube" && videoID) {
   wrapper.innerHTML += `
@@ -1157,13 +1158,6 @@ if (provider === "youtube" && videoID) {
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
-  setTimeout(() => { 
-      initGestures('youtube');
-      setupMenuOverlayBlock();
-      injectCustomSeekControls();
-      injectInlineVolumeSlider();
-      disableGesturesWhileMenusOpen();
-  }, 500);
 } else if (provider === "html5" && video) {
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
@@ -1173,29 +1167,15 @@ if (provider === "youtube" && videoID) {
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
-  setTimeout(() => { 
-      initGestures('html5');
-      setupMenuOverlayBlock();
-      injectCustomSeekControls();
-      injectInlineVolumeSlider();
-      disableGesturesWhileMenusOpen();
-  }, 500);
 } else if (provider === "hls" && video) {
   //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
-  //   👇🏻  NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute So Android Chrome Doesn't Flash Its Native UI
+  //   NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
       <video id="player" class="rounded w-full h-full" style="background:black;" playsinline></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
-  setTimeout(() => { 
-      initGestures('hls');
-      setupMenuOverlayBlock();
-      injectCustomSeekControls();
-      injectInlineVolumeSlider();
-      disableGesturesWhileMenusOpen();
-  }, 500);
 }
 
 
@@ -1324,6 +1304,15 @@ function initAllPlayerEvents(plyrInstance) {
 
   player.on('ready', () => {
     try {
+      //   👇🏻  GUARANTEED UI INJECTION  :  Runs Exactly When Plyr Has Finished Building !!
+      //   This Permanently Fixes The UI Flashing Bug On Brand New Links By Waiting For The Network .
+      initGestures(provider);
+      setupMenuOverlayBlock();
+      injectCustomSeekControls();
+      injectInlineVolumeSlider();
+      disableGesturesWhileMenusOpen();
+
+      //   Original Skip Logic
       if (!noSkip && player.provider !== 'youtube' && player.media) {
         player.media.addEventListener("loadedmetadata", () => {
           if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
@@ -1332,11 +1321,13 @@ function initAllPlayerEvents(plyrInstance) {
           if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
         });
       }
+      
+      //   Original YouTube Quality Hack
       if (player.provider === 'youtube' && player.embed?.setPlaybackQuality) {
         player.embed.setPlaybackQuality('hd1440');
       }
     } catch (err) {
-      console.warn("Skip init error", err);
+      console.warn("Player ready init error", err);
     }
   });
 
@@ -2226,8 +2217,9 @@ window.startSessionTracking = function() {
                 setSessionDotState("playing");
             }
         }
-        //   If It's a YouTube Live Stream  ( Like 800 Hours Long ) ,  Just Show  " Live Stream "  Instead of Confusing Numbers
-        if (isYtLive || dur === Infinity) {
+        //   👇🏻  TOTAL DURATION FIX  :  Allow YouTube Live To Dynamically Show Actual Live Running Time  ( e.g. ,  11:00:00:00 )
+        //   We Only Override To  " Live Stream "  If The Duration is Literally Infinity  ( Like iOS Native HLS ) .
+        if (dur === Infinity) {
             document.getElementById("sessionTotalDuration").textContent = "Live Stream";
         } else {
             document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
