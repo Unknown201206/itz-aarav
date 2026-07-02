@@ -1336,9 +1336,13 @@ function initAllPlayerEvents(plyrInstance) {
     }
   });
 
-  //   👇🏻  Boot Up Custom UI Tracking Only After Player is Ready To Prevent Fatal Crashes
-  if (typeof window.startSessionTracking === 'function') window.startSessionTracking();
-  if (typeof window.startProgressTracking === 'function') window.startProgressTracking();
+  //   👇🏻  EXECUTION ORDER FIX  :  YouTube Initializes So Fast That It Calls These Functions 
+  //   Milliseconds Before The Browser Finishes Reading The Bottom of Your HTML File . 
+  //   We Push This To The End of The Event Loop To Guarantee The Trackers Are Defined in Memory .
+  setTimeout(() => {
+    if (typeof window.startSessionTracking === 'function') window.startSessionTracking();
+    if (typeof window.startProgressTracking === 'function') window.startProgressTracking();
+  }, 150);
 }
 
 
@@ -2442,6 +2446,14 @@ window.startSessionTracking = function() {
     window.player.on('loadedmetadata', updateProgressFromPlayer);
     window.player.on('ended', updateProgressFromPlayer);
     setTimeout(updateProgressFromPlayer, 80);
+    
+    //   👇🏻  EVENT SUPPRESSION FIX  :  Google's iframe  Frequently Blocks The  ' timeupdate '  Event On Live Streams .
+    //   If The Event Doesn't Fire ,  The  Omni - Scraper  Never Runs .  This Forces It To Run Every 1 Second .
+    setInterval(() => {
+        if (window.player && !window.player.paused) {
+            updateProgressFromPlayer();
+        }
+    }, 1000);
   };
 })();
 
