@@ -1847,10 +1847,10 @@ function injectCustomSeekControls() {
       // left relative to parent
       let left = (btnRect.left - parentRect.left) + (btnRect.width / 2) - (menuWidth / 2) - horizontalNudge;
 
-      // clamp inside parent
+      //   Clamp Inside Parent
       left = Math.max(6, Math.min(left, Math.max(6, parentRect.width - menuWidth - 6)));
 
-      // top relative to parent: place above the button. If not enough space, place below.
+      //   Top Relative To Parent  :  Place Above The Button .  If Not Enough Space ,  Place Below .
       let top = (btnRect.top - parentRect.top) - menuHeight - verticalOffset;
       if (top < 6) top = (btnRect.bottom - parentRect.top) + verticalOffset;
 
@@ -1860,12 +1860,12 @@ function injectCustomSeekControls() {
       seekIntervalMenu.style.bottom = '';
     }
 
-    // restore visibility (menu-show is toggled elsewhere to animate)
+    //   Restore Visibility  ( Menu - Show is Toggled Elsewhere To Animate )
     seekIntervalMenu.style.visibility = '';
   });
   }
 
-  // re-position while open if the window is resized
+  //   Re - Position  While Open If The Window is Resized
   ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(evt => {
     window.addEventListener(evt, () => {
       if (seekIntervalMenu.style.display !== 'none') {
@@ -1874,18 +1874,18 @@ function injectCustomSeekControls() {
     });
   });
 
-  // Place right after mute button for consistent layout
+  //   Place Right After Mute Button For Consistent Layout
   const muteBtn = controls.querySelector('[data-plyr="mute"]');
   muteBtn?.insertAdjacentElement('afterend', container);
 
-  // Hide interval menu on outside click
+  //   Hide Interval Menu On Outside Click
   document.addEventListener('click', function(ev){
     if (!seekIntervalMenu.contains(ev.target) &&
         ev.target !== intervalBtn
     ) {
       instantHideMenu(seekIntervalMenu);
-      setIntervalBtnHighlight(false);       //   ✅ Reset highlight on outside click
-      // restore gesture zones when menu closes
+      setIntervalBtnHighlight(false);            //   ✅  Reset Highlight On Outside Click
+      //   Restore Gesture Zones When Menu Closes
       const gestureLeft = document.getElementById('gestureLeft');
       const gestureRight = document.getElementById('gestureRight');
       if (gestureLeft && gestureRight) {
@@ -1895,15 +1895,15 @@ function injectCustomSeekControls() {
     }
   });
 
-  // handle fullscreen toggling: move menu to best parent and reposition
+  //   Handle Fullscreen Toggling: Move Menu To Best Parent & Reposition
   function handleFullscreenMove() {
     const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (isFullscreen) {
-      // append to the plyr root wrapper (fullscreen element), not controls
+      //   Append To The Plyr Root Wrapper  ( Fullscreen Element ) ,  Not Controls
       const plyrRoot = controls.closest('.plyr');
       plyrRoot.appendChild(seekIntervalMenu);
     } else {
-      // back to body so it can overflow outside player in normal mode
+      //   Back To Body So It Can Overflow Outside Player in Normal Mode
       document.body.appendChild(seekIntervalMenu);
     }
 
@@ -1912,12 +1912,12 @@ function injectCustomSeekControls() {
     }
   }
 
-  // listen for full-screen changes (standard + webkit)
+  //   Listen For  Full - Screen  Changes  ( Standard + Webkit )
   document.addEventListener('fullscreenchange', handleFullscreenMove);
   document.addEventListener('webkitfullscreenchange', handleFullscreenMove);
 }
 
-// ========== INLINE VOLUME SLIDER ==========
+//   ==========  INLINE VOLUME SLIDER  ==========
 
 function injectInlineVolumeSlider() {
   const controls = document.querySelector('.plyr__controls');
@@ -1926,14 +1926,14 @@ function injectInlineVolumeSlider() {
   const muteBtn = controls.querySelector('[data-plyr="mute"]');
   if (!muteBtn) return;
 
-  // Create the slider container
+  //   Create The Slider Container
   const volContainer = document.createElement('div');
   let volumeAutoHideTimeout = null;
   volContainer.id = 'inlineVolumeSlider';
   volContainer.style.display = 'none';
   volContainer.classList.add('menu-animate');
 
-  // Vertical slider
+  //   Vertical Slider
   const volumeSlider = document.createElement('input');
   volumeSlider.type = 'range';
   volumeSlider.min = 0; volumeSlider.max = 1; volumeSlider.step = 0.01; volumeSlider.value = 1;
@@ -1941,7 +1941,7 @@ function injectInlineVolumeSlider() {
   volContainer.appendChild(volumeSlider);
   muteBtn.insertAdjacentElement('afterend', volContainer);
 
-  // Show slider when mute/volume button is clicked, set volume to 100%
+  //   Show Slider When  Mute / Volume  Button is Clicked ,  Set Volume To  100 %
   muteBtn.addEventListener('click', (e) => {
     e.preventDefault();
 
@@ -2002,7 +2002,6 @@ function injectInlineVolumeSlider() {
   });
 }
 
-//   ======  Current Session Card Logic  ======
 //   ======  Current Session Card Logic  ( Improved )  ======
 const sessionStatusDot = document.getElementById("sessionStatusDot");
 const sessionCurrentTime = document.getElementById("sessionCurrentTime");
@@ -2042,7 +2041,7 @@ function setSessionDotState(state) {
   sessionStatusDot.classList.remove("bg-green-600", "bg-red-600", "bg-yellow-900");
   if (state === "playing") sessionStatusDot.classList.add("bg-green-600");
   else if (state === "buffering") sessionStatusDot.classList.add("bg-yellow-900");
-  else sessionStatusDot.classList.add("bg-red-600"); // paused/ended
+  else sessionStatusDot.classList.add("bg-red-600");       //   Paused / Ended
 }
 
 //   Start Counting Watch Time
@@ -2242,58 +2241,49 @@ window.startSessionTracking = function() {
 
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
-    let dur = Number(player.duration || 0);
-    let cur = Number(player.currentTime || 0);
+    let rawDur = Number(player.duration || 0);
+    let rawCur = Number(player.currentTime || 0);
     
     let isYtLive = false;
-    let scrapeTriggered = false;
+    let ytDrift = 0;
 
     //   👇🏻  YOUTUBE IFRAME API EXTRACTION
     if (player.provider === 'youtube' && player.embed) {
         if (typeof player.embed.getVideoData === 'function') {
             isYtLive = player.embed.getVideoData().isLive || false;
         }
-        if (typeof player.embed.getDuration === 'function') {
+        if (isYtLive) {
             const ytDur = Number(player.embed.getDuration() || 0);
-            if (ytDur > 0) dur = ytDur;
-        }
-        if (typeof player.embed.getCurrentTime === 'function') {
             const ytCur = Number(player.embed.getCurrentTime() || 0);
-            if (ytCur > 0) cur = ytCur;
+            //   👇🏻  DRIFT FIX  :  Calculate Exact Drift Internally Within Google's Engine .
+            //   This Perfectly Isolates The Math ,  Bypassing Google's Fake  2 - Hour  or  855 - Hour DVR Limits .
+            ytDrift = Math.max(0, ytDur - ytCur);
         }
     }
 
-    //   👇🏻  THE UPGRADED  OMNI - SCRAPER  :  Replaces Google's Unhinged  855 - Hour  Durations With What You Actually See On Screen .
-    if (dur === 0 || isYtLive) {
-        const curEl = document.querySelector('.plyr__time--current');
-        const durEl = document.querySelector('.plyr__time--duration');
-        
-        let scrapedCur = curEl ? parseTimeString(curEl.textContent) : 0;
-        let scrapedDur = durEl ? parseTimeString(durEl.textContent) : 0;
+    //   👇🏻  THE DECOUPLED VISUAL SCRAPER  :  Pull What The User Actually Sees On The Plyr Timeline Screen
+    const curEl = document.querySelector('.plyr__time--current');
+    const durEl = document.querySelector('.plyr__time--duration');
+    let visualCur = curEl ? parseTimeString(curEl.textContent) : rawCur;
+    let visualDur = durEl ? parseTimeString(durEl.textContent) : rawDur;
 
-        if (isYtLive) {
-            scrapeTriggered = true;
-            //   For YouTube Live ,  We Strictly Trust The Visual UI & Completely Destroy Google's API Numbers
-            if (scrapedCur > 0) cur = scrapedCur;
-            
-            if (scrapedDur > 0) {
-                //   If It is a DVR Stream  ( Can Rewind ) ,  The Duration Element Exists On Screen
-                dur = scrapedDur;
-            } else {
-                //   If it is a Continuous stream ( No Rewind ) ,  There is No Duration Element .  The Current Time is The Duration .
-                dur = scrapedCur;
-            }
-        } else {
-            //   For Normal VODs With Broken API Data
-            if (scrapedCur > 0) cur = scrapedCur;
-            if (scrapedDur > 0 && dur === 0) dur = scrapedDur;
-        }
+    let cur = rawCur;
+    let dur = rawDur;
+
+    if (isYtLive) {
+        //   👇🏻  YOUTUBE LIVE MATH FIX  :  Completely Sever Google's Internal Backend Duration From Our UI
+        cur = visualCur;       //   What You Visually See on Screen is The Absolute Truth For Watched Video
+        dur = visualCur + ytDrift;     //   Total Duration = Visual Current Time + How Many Seconds Behind Live You Are
+    } else {
+        //   Normal VOD Math  ( Non - Live )
+        if (visualCur > 0) cur = visualCur;
+        if (visualDur > 0 && rawDur === 0) dur = visualDur;
     }
 
     //   👇🏻  DEBUG OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
     const now = Date.now();
     if (now - lastDebugLogTime > 4000) {
-        console.log(`[STATE] isYtLive:${isYtLive} | dur:${dur} | cur:${cur} | scraped:${scrapeTriggered} | paused:${player.paused}`);
+        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift} | dur:${dur} | cur:${cur} | paused:${player.paused}`);
         lastDebugLogTime = now;
     }
 
@@ -2318,8 +2308,8 @@ window.startSessionTracking = function() {
 
     //   Early Exit Trap  :  Only Quit If It's a  VOD & Truly Has 0 Duration
     if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
-      checkLiveDrift(cur, dur, isYtLive);
-      return;
+        checkLiveDrift(cur, dur, isYtLive, ytDrift);
+        return;
     }
 
     let frac = (dur > 0) ? Math.max(0, Math.min(1, cur / dur)) : 1;
@@ -2328,48 +2318,47 @@ window.startSessionTracking = function() {
 
     //   👇🏻  SMART PERCENTAGE FIX 
     if (isYtLive) {
-      //   For YouTube Live ,  Calculating  Remaining %  is Messy .  We Show  100 / 0  Unless Scrubbed Back Significantly .
-      if (dur - cur > 15) {
-          //   They Scrubbed Back !!  Show Real Percentages .
-          leftFill.style.width = `${watchedPct.toFixed(2)}%`;
-          rightFill.style.width = `${remPct.toFixed(2)}%`;
-          leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
-          rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
-      } else {
-          //   At The Live Edge
-          leftFill.style.width = '100%';
-          rightFill.style.width = '0%';
-          leftPercentEl.textContent = '100%   Watched';
-          rightPercentEl.textContent = '0%   Remaining';
-      }
+        //   For YouTube Live ,  Calculating  Remaining %  is Messy .  We Show  100 / 0  Unless Scrubbed Back Significantly .
+        if (ytDrift > 15) {
+            //   They Scrubbed Back !!  Show Real Percentages .
+            leftFill.style.width = `${watchedPct.toFixed(2)}%`;
+            rightFill.style.width = `${remPct.toFixed(2)}%`;
+            leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
+            rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+        } else {
+            //   At The Live Edge
+            leftFill.style.width = '100%';
+            rightFill.style.width = '0%';
+            leftPercentEl.textContent = '100%   Watched';
+            rightPercentEl.textContent = '0%   Remaining';
+        }
     } else {
-      //   Normal VOD  Percentage Logic
-      if (cur === 0) {
-        leftFill.style.width = '0%';
-        rightFill.style.width = '100%';
-        leftPercentEl.textContent = '0%   Watched';
-        rightPercentEl.textContent = '100%   Remaining';
-      } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
-        leftFill.style.width = '100%';
-        rightFill.style.width = '0%';
-        leftPercentEl.textContent = '100%   Watched';
-        rightPercentEl.textContent = '0%   Remaining';
-      } else {
-        leftFill.style.width = `${watchedPct.toFixed(2)}%`;
-        rightFill.style.width = `${remPct.toFixed(2)}%`;
-        leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
-        rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
-      }
+        //   Normal VOD  Percentage Logic
+        if (cur === 0) {
+            leftFill.style.width = '0%';
+            rightFill.style.width = '100%';
+            leftPercentEl.textContent = '0%   Watched';
+            rightPercentEl.textContent = '100%   Remaining';
+        } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
+            leftFill.style.width = '100%';
+            rightFill.style.width = '0%';
+            leftPercentEl.textContent = '100%   Watched';
+            rightPercentEl.textContent = '0%   Remaining';
+        } else {
+            leftFill.style.width = `${watchedPct.toFixed(2)}%`;
+            rightFill.style.width = `${remPct.toFixed(2)}%`;
+            leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
+            rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+        }
     }
 
-    if (window.watchedWave) window.watchedWave.update(isYtLive && (dur - cur <= 15) ? 1 : frac);
-    if (window.remainingWave) window.remainingWave.update(isYtLive && (dur - cur <= 15) ? 0 : 1 - frac);
+    if (window.watchedWave) window.watchedWave.update(isYtLive && (ytDrift <= 15) ? 1 : frac);
+    if (window.remainingWave) window.remainingWave.update(isYtLive && (ytDrift <= 15) ? 0 : 1 - frac);
     
-    checkLiveDrift(cur, dur, isYtLive);
+    checkLiveDrift(cur, dur, isYtLive, ytDrift);
   }
-  
 
-  function checkLiveDrift(cur, dur, isYtLive) {
+  function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
     const liveIndicator = document.getElementById('liveIndicator');
     const liveIndicatorText = document.getElementById('liveIndicatorText');
     const liveIndicatorDot = document.getElementById('liveIndicatorDot');
@@ -2401,12 +2390,10 @@ window.startSessionTracking = function() {
     //   Stream is Live .  Ensure Button is Visible .
     liveIndicator.style.display = 'flex';
 
-    const secondsBehind = liveEdgeTime - cur;
-
-    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  We Now Mathematically Calculate Drift For  YouTube DVR Streams !!
+    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  Mathematically Calculate Drift Directly From Google's Engine
     if (isYtLive) {
-        //   If They Are Within 18 Seconds of The Max Visual Duration ,  They Are at The Live Edge .
-        if (secondsBehind <= 18) {
+        //   If They Are Within 18 Seconds of Google's Internal Edge ,  They Are Live
+        if (ytDrift <= 18) {
             liveIndicatorText.textContent = "LIVE";
             liveIndicatorText.style.color = "#16a34a";
             liveIndicatorDot.style.backgroundColor = "#16a34a";
@@ -2419,6 +2406,9 @@ window.startSessionTracking = function() {
         }
         return;
     }
+    
+    //   Mathematical Drift Check Specifically For PW HLS Streams
+    const secondsBehind = liveEdgeTime - cur;
     
     //   12 - Second  Tolerance For PW Streams
     if (secondsBehind <= 12) { 
@@ -2434,31 +2424,23 @@ window.startSessionTracking = function() {
     }
   }
 
-
   //   Make The Live Indicator Button Clickable To Forcefully Jump Back To Live Edge
   const liveInd = document.getElementById('liveIndicator');
   if (liveInd) {
-    liveInd.addEventListener('click', () => {
-      if (!window.player) return;
-      
-      const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
+      liveInd.addEventListener('click', () => {
+          if (!window.player) return;
+          
+          const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
 
-      //   ( Logs Removed For Performance )
-      
-      if (window.hls && window.hls.liveSyncPosition) {
-        window.player.currentTime = window.hls.liveSyncPosition;
-      } else if (isYtLive && window.player.duration) {
-        //   👇🏻  YOUTUBE JUMP BYPASS  :  Instead of Calculating Math That Breaks The Iframe , 
-        //   We Execute YouTube's Native Embed API Directly .  It Clamps To The Safest Live Edge Natively .
-        if (window.player.embed && window.player.embed.seekTo) {
-           window.player.embed.seekTo(window.player.duration, true);
-        } else {
-           window.player.currentTime = window.player.duration;
-        }
-      } else if (window.player.duration && window.player.duration !== Infinity) {
-        window.player.currentTime = window.player.duration;
-      }
-    });
+          if (window.hls && window.hls.liveSyncPosition) {
+              window.player.currentTime = window.hls.liveSyncPosition;
+          } else if (isYtLive && window.player.embed && window.player.embed.seekTo) {
+              //   👇🏻  YOUTUBE JUMP BYPASS  :  Seek Using Google's Pure Internal getDuration API
+              window.player.embed.seekTo(window.player.embed.getDuration(), true);
+          } else if (window.player.duration && window.player.duration !== Infinity) {
+              window.player.currentTime = window.player.duration;
+          }
+      });
   }
 
   
