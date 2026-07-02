@@ -1216,7 +1216,8 @@ const plyrConfig = {
   ],
   //   ' quality '  is Placed First So It Appears Above  ' speed '
   settings: ['quality', 'speed', 'volume'],
-  toggleInvert: true,           
+  //   👇🏻  INVERT FIX  :  Force Plyr's Native Invert To False So It Doesn't Break Our Custom Math
+  toggleInvert: false,           
   speed: {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
@@ -1274,34 +1275,26 @@ function initAllPlayerEvents(plyrInstance) {
     hideCustomLoader();
   }
 
-  //   Invert Time Toggle
+  //   👇🏻  CUSTOM INVERT TIME TOGGLE  :  Bypass Plyr's Broken Native Logic
   (function() {
     const root = document.querySelector('.plyr');
     if (!root) return;
     root.addEventListener('click', function (e) {
       const timeWrap = e.target.closest('.plyr__time');
       if (!timeWrap) return;
+      
+      //   Stop Plyr From Natively Trying To Change The Time Text
       e.stopPropagation();
-      if (player && typeof player.toggleInvertTime === 'function') {
-        player.toggleInvertTime();
-        return;
+      e.preventDefault(); 
+      
+      //   Toggle Our Custom Global Invert State
+      if (typeof window.customTimeInverted === 'undefined') {
+          window.customTimeInverted = false;
       }
-      if (!root._myInvertToggle) {
-        root._myInvertToggle = { enabled: false };
-        player.on('timeupdate', () => {
-          const curEl = root.querySelector('.plyr__time--current');
-          if (!curEl) return;
-          if (root._myInvertToggle.enabled) {
-            const dur = Math.floor(player.duration || 0);
-            const cur = Math.floor(player.currentTime || 0);
-            const remaining = Math.max(0, dur - cur);
-            curEl.textContent = '-' + formatTime(remaining);
-          } else {
-            curEl.textContent = formatTime(Math.floor(player.currentTime || 0));
-          }
-        });
-      }
-      root._myInvertToggle.enabled = !root._myInvertToggle.enabled;
+      window.customTimeInverted = !window.customTimeInverted;
+      
+      //   Force an Immediate UI Update
+      if (typeof updateProgressFromPlayer === 'function') updateProgressFromPlayer();
     }, true);
   })();
 
@@ -2252,23 +2245,35 @@ window.startSessionTracking = function() {
         if (typeof player.embed.getVideoData === 'function') {
             isYtLive = player.embed.getVideoData().isLive || false;
         }
+        if (isYtLive) {
+            const ytDur = Number(player.embed.getDuration() || 0);
+            const ytCur = Number(player.embed.getCurrentTime() || 0);
+            //   Calculate Exact Drift Internally Within Google's Engine
+            ytDrift = Math.max(0, ytDur - ytCur);
+        }
     }
 
-    //   👇🏻  THE DECOUPLED VISUAL SCRAPER  :  Pull What The User Actually Sees On The Plyr Timeline Screen
+    //   👇🏻  THE DECOUPLED VISUAL SCRAPER 
     const curEl = document.querySelector('.plyr__time--current');
     const durEl = document.querySelector('.plyr__time--duration');
-    let visualCur = curEl ? parseTimeString(curEl.textContent) : rawCur;
-    let visualDur = durEl ? parseTimeString(durEl.textContent) : rawDur;
+    
+    let curText = curEl ? curEl.textContent.trim() : "";
+    let durText = durEl ? durEl.textContent.trim() : "";
+    
+    //   👇🏻  BLINKING FIX  :  Check if The Text Contains a Minus Sign .  If It Does ,  We Must Ignore It .
+    let isShowingRemaining = curText.startsWith('-');
+
+    //   Only Scrape If It's a Normal  Forward - Moving  Positive Timestamp
+    let scrapedCur = (!isShowingRemaining && curText !== "") ? parseTimeString(curText) : 0;
+    let scrapedDur = (durText !== "") ? parseTimeString(durText) : 0;
 
     let cur = rawCur;
     let dur = rawDur;
 
     if (isYtLive) {
-        //   👇🏻  YOUTUBE LIVE MATH FIX  :  Google's  getDuration()  is Fundamentally Broken For Long DVR Streams ( Often Offset By  1+ Hours ) .
-        //   We Use a  ' High Water Mark '  +  Real - Time  Clock Algorithm To Track The True Live Edge Without Relying on Google's API .
-        
+        //   👇🏻  YOUTUBE LIVE MATH FIX  :  High - Water  Mark +  Real - Time  Clock Algorithm
         if (typeof window.ytMaxSeen === 'undefined') {
-            window.ytMaxSeen = visualCur;
+            window.ytMaxSeen = scrapedCur > 0 ? scrapedCur : rawCur;
             window.lastRealTime = Date.now();
         }
         
@@ -2279,20 +2284,20 @@ window.startSessionTracking = function() {
         
         window.ytMaxSeen += elapsedSecs;
 
-        //   If The Visual Current Time Jumps Ahead  ( e.g. - User Clicked Live Or Scrubbed Forward ) ,  Push The High Water Mark Up
-        if (visualCur > window.ytMaxSeen) {
-            window.ytMaxSeen = visualCur;
+        //   If We Successfully Scraped a Normal Forward Time That is Higher ,  Sync Up !!
+        if (scrapedCur > window.ytMaxSeen) {
+            window.ytMaxSeen = scrapedCur;
         }
 
-        cur = visualCur;
         dur = window.ytMaxSeen;
         
-        //   Calculate Drift Based Entirely On How Far They Scrubbed Back From The High Water Mark
-        ytDrift = Math.max(0, dur - cur);
+        //   Calculate cur By Subtracting Actual Google Drift From Our Perfect  High - Water  Duration
+        cur = Math.max(0, dur - ytDrift);
+        
     } else {
         //   Normal VOD Math  ( Non - Live )
-        if (visualCur > 0) cur = visualCur;
-        if (visualDur > 0 && rawDur === 0) dur = visualDur;
+        if (scrapedCur > 0) cur = scrapedCur;
+        if (scrapedDur > 0 && rawDur === 0) dur = scrapedDur;
     }
 
     //   👇🏻  DEBUG OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
@@ -2327,7 +2332,7 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   Early Exit Trap  :  Only Quit If It's a  VOD & Truly Has 0 Duration
+    //   Early Exit Trap
     if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
         checkLiveDrift(cur, dur, isYtLive, ytDrift);
         return;
@@ -2339,15 +2344,12 @@ window.startSessionTracking = function() {
 
     //   👇🏻  SMART PERCENTAGE FIX 
     if (isYtLive) {
-        //   For YouTube Live ,  Calculating  Remaining %  is Messy .  We Show  100 / 0  Unless Scrubbed Back Significantly .
         if (ytDrift > 15) {
-            //   They Scrubbed Back !!  Show Real Percentages .
             leftFill.style.width = `${watchedPct.toFixed(2)}%`;
             rightFill.style.width = `${remPct.toFixed(2)}%`;
             leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
             rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
         } else {
-            //   At The Live Edge
             leftFill.style.width = '100%';
             rightFill.style.width = '0%';
             leftPercentEl.textContent = '100%   Watched';
@@ -2376,8 +2378,25 @@ window.startSessionTracking = function() {
     if (window.watchedWave) window.watchedWave.update(isYtLive && (ytDrift <= 15) ? 1 : frac);
     if (window.remainingWave) window.remainingWave.update(isYtLive && (ytDrift <= 15) ? 0 : 1 - frac);
     
+    //   👇🏻  COMMAND THE DOM FOR CUSTOM INVERT  ( Overrides Plyr Entirely )
+    if (curEl) {
+        if (window.customTimeInverted) {
+            let remainingSecs = Math.max(0, dur - cur);
+            curEl.textContent = "-" + formatTime(remainingSecs);
+        } else if (isYtLive) {
+            //   Force Pure Visual Forward Time To Protect Against Google's API
+            curEl.textContent = formatTime(cur);
+        }
+    }
+    
+    //   Force The Duration Element For Live Streams So It Doesn't Show Google's Fake 56 Hours
+    if (durEl && isYtLive) {
+        durEl.textContent = formatTime(dur);
+    }
+    
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
   }
+
 
   function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
     const liveIndicator = document.getElementById('liveIndicator');
