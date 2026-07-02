@@ -2252,13 +2252,6 @@ window.startSessionTracking = function() {
         if (typeof player.embed.getVideoData === 'function') {
             isYtLive = player.embed.getVideoData().isLive || false;
         }
-        if (isYtLive) {
-            const ytDur = Number(player.embed.getDuration() || 0);
-            const ytCur = Number(player.embed.getCurrentTime() || 0);
-            //   👇🏻  DRIFT FIX  :  Calculate Exact Drift Internally Within Google's Engine .
-            //   This Perfectly Isolates The Math ,  Bypassing Google's Fake  2 - Hour  or  855 - Hour DVR Limits .
-            ytDrift = Math.max(0, ytDur - ytCur);
-        }
     }
 
     //   👇🏻  THE DECOUPLED VISUAL SCRAPER  :  Pull What The User Actually Sees On The Plyr Timeline Screen
@@ -2271,9 +2264,31 @@ window.startSessionTracking = function() {
     let dur = rawDur;
 
     if (isYtLive) {
-        //   👇🏻  YOUTUBE LIVE MATH FIX  :  Completely Sever Google's Internal Backend Duration From Our UI
-        cur = visualCur;       //   What You Visually See on Screen is The Absolute Truth For Watched Video
-        dur = visualCur + ytDrift;     //   Total Duration = Visual Current Time + How Many Seconds Behind Live You Are
+        //   👇🏻  YOUTUBE LIVE MATH FIX  :  Google's  getDuration()  is Fundamentally Broken For Long DVR Streams ( Often Offset By  1+ Hours ) .
+        //   We Use a  ' High Water Mark '  +  Real - Time  Clock Algorithm To Track The True Live Edge Without Relying on Google's API .
+        
+        if (typeof window.ytMaxSeen === 'undefined') {
+            window.ytMaxSeen = visualCur;
+            window.lastRealTime = Date.now();
+        }
+        
+        //   Advance The Theoretical Live Edge By  Wall - Clock  Time
+        const nowTime = Date.now();
+        const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
+        window.lastRealTime = nowTime;
+        
+        window.ytMaxSeen += elapsedSecs;
+
+        //   If The Visual Current Time Jumps Ahead  ( e.g. - User Clicked Live Or Scrubbed Forward ) ,  Push The High Water Mark Up
+        if (visualCur > window.ytMaxSeen) {
+            window.ytMaxSeen = visualCur;
+        }
+
+        cur = visualCur;
+        dur = window.ytMaxSeen;
+        
+        //   Calculate Drift Based Entirely On How Far They Scrubbed Back From The High Water Mark
+        ytDrift = Math.max(0, dur - cur);
     } else {
         //   Normal VOD Math  ( Non - Live )
         if (visualCur > 0) cur = visualCur;
@@ -2283,7 +2298,7 @@ window.startSessionTracking = function() {
     //   👇🏻  DEBUG OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
     const now = Date.now();
     if (now - lastDebugLogTime > 4000) {
-        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift} | dur:${dur} | cur:${cur} | paused:${player.paused}`);
+        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
         lastDebugLogTime = now;
     }
 
@@ -2299,7 +2314,13 @@ window.startSessionTracking = function() {
         }
         
         //   Format The Actual Total Duration Perfectly
-        if (dur === Infinity) {
+        if (isYtLive) {
+            if (dur > 0) {
+                document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
+            } else {
+                document.getElementById("sessionTotalDuration").textContent = "Live Stream";
+            }
+        } else if (dur === Infinity) {
             document.getElementById("sessionTotalDuration").textContent = "Live Stream";
         } else {
             document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
@@ -2390,9 +2411,9 @@ window.startSessionTracking = function() {
     //   Stream is Live .  Ensure Button is Visible .
     liveIndicator.style.display = 'flex';
 
-    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  Mathematically Calculate Drift Directly From Google's Engine
+    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  Mathematically Calculate Drift Against Our  High - Water  Mark Tracker
     if (isYtLive) {
-        //   If They Are Within 18 Seconds of Google's Internal Edge ,  They Are Live
+        //   If They Are Within 18 Seconds of Our  Real - Time  Tracker Edge ,  They Are Live
         if (ytDrift <= 18) {
             liveIndicatorText.textContent = "LIVE";
             liveIndicatorText.style.color = "#16a34a";
@@ -2435,8 +2456,9 @@ window.startSessionTracking = function() {
           if (window.hls && window.hls.liveSyncPosition) {
               window.player.currentTime = window.hls.liveSyncPosition;
           } else if (isYtLive && window.player.embed && window.player.embed.seekTo) {
-              //   👇🏻  YOUTUBE JUMP BYPASS  :  Seek Using Google's Pure Internal getDuration API
-              window.player.embed.seekTo(window.player.embed.getDuration(), true);
+              //   👇🏻  YOUTUBE JUMP BYPASS  :  Seek Using Google's Legendary 999999999 Trick !!
+              //   By Seeking To an Impossibly High Number ,  Google's Engine Forcibly Caps It at The Exact True Live Edge .
+              window.player.embed.seekTo(999999999, true);
           } else if (window.player.duration && window.player.duration !== Infinity) {
               window.player.currentTime = window.player.duration;
           }
