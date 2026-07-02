@@ -2229,6 +2229,17 @@ window.startSessionTracking = function() {
   //   👇🏻  THROTTLED LOGGER  :  Prevents The Debug Box From Crashing Your Browser While Constantly Updating
   let lastDebugLogTime = 0;
 
+  //   👇🏻  HELPER FUNCTION  :  Converts The Visual  " HH:MM:SS "  From Plyr Into Raw Seconds
+  function parseTimeString(str) {
+      if (!str) return 0;
+      const parts = str.replace(/-/g, '').trim().split(':').reverse();
+      let secs = 0;
+      if (parts[0]) secs += parseInt(parts[0], 10) || 0;
+      if (parts[1]) secs += (parseInt(parts[1], 10) || 0) * 60;
+      if (parts[2]) secs += (parseInt(parts[2], 10) || 0) * 3600;
+      return secs;
+  }
+
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
     let dur = Number(player.duration || 0);
@@ -2237,7 +2248,7 @@ window.startSessionTracking = function() {
     let isYtLive = false;
     let scrapeTriggered = false;
 
-    //   👇🏻  YOUTUBE IFRAME API OVERRIDE 
+    //   👇🏻  YOUTUBE IFRAME API EXTRACTION
     if (player.provider === 'youtube' && player.embed) {
         if (typeof player.embed.getVideoData === 'function') {
             isYtLive = player.embed.getVideoData().isLive || false;
@@ -2252,28 +2263,30 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   👇🏻  THE  OMNI - SCRAPER  FALLBACK  :  If Google's API Gives 0 ,  Scan Every Time Element On The Screen For The Highest Number
+    //   👇🏻  THE UPGRADED  OMNI - SCRAPER  :  Replaces Google's Unhinged  855 - Hour  Durations With What You Actually See On Screen .
     if (dur === 0 || isYtLive) {
-        let maxScraped = 0;
-        //   Scan Both Current Time & Duration UI Elements Because Plyr Moves Text Randomly On Live Streams
-        const timeEls = document.querySelectorAll('.plyr__time'); 
-        timeEls.forEach(el => {
-            if (el && el.textContent) {
-                const parts = el.textContent.replace(/-/g, '').trim().split(':').reverse();
-                let secs = 0;
-                if (parts[0]) secs += parseInt(parts[0], 10) || 0;
-                if (parts[1]) secs += (parseInt(parts[1], 10) || 0) * 60;
-                if (parts[2]) secs += (parseInt(parts[2], 10) || 0) * 3600;
-                if (secs > maxScraped) maxScraped = secs;
-            }
-        });
+        const curEl = document.querySelector('.plyr__time--current');
+        const durEl = document.querySelector('.plyr__time--duration');
         
-        if (maxScraped > 0) {
+        let scrapedCur = curEl ? parseTimeString(curEl.textContent) : 0;
+        let scrapedDur = durEl ? parseTimeString(durEl.textContent) : 0;
+
+        if (isYtLive) {
             scrapeTriggered = true;
-            //   For Live Streams ,  The Highest Visible Time is The Current Running Duration
-            dur = Math.max(dur, maxScraped);
-            //   Force  ' cur '  To Match So The math Doesn't Break
-            if (cur === 0) cur = maxScraped; 
+            //   For YouTube Live ,  We Strictly Trust The Visual UI & Completely Destroy Google's API Numbers
+            if (scrapedCur > 0) cur = scrapedCur;
+            
+            if (scrapedDur > 0) {
+                //   If It is a DVR Stream  ( Can Rewind ) ,  The Duration Element Exists On Screen
+                dur = scrapedDur;
+            } else {
+                //   If it is a Continuous stream ( No Rewind ) ,  There is No Duration Element .  The Current Time is The Duration .
+                dur = scrapedCur;
+            }
+        } else {
+            //   For Normal VODs With Broken API Data
+            if (scrapedCur > 0) cur = scrapedCur;
+            if (scrapedDur > 0 && dur === 0) dur = scrapedDur;
         }
     }
 
@@ -2295,21 +2308,15 @@ window.startSessionTracking = function() {
             console.log("[DEBUG] Fallback session timer activated via progress loop.");
         }
         
-        //   Format The Actual Total Duration
-        if (isYtLive) {
-            if (dur > 0) {
-                document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
-            } else {
-                document.getElementById("sessionTotalDuration").textContent = "Live Stream";
-            }
-        } else if (dur === Infinity) {
+        //   Format The Actual Total Duration Perfectly
+        if (dur === Infinity) {
             document.getElementById("sessionTotalDuration").textContent = "Live Stream";
         } else {
             document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
         }
     }
 
-    //   Early Exit Trap  :  Only Quit If It's a VOD & Truly Has 0 Duration
+    //   Early Exit Trap  :  Only Quit If It's a  VOD & Truly Has 0 Duration
     if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
       checkLiveDrift(cur, dur, isYtLive);
       return;
@@ -2321,11 +2328,22 @@ window.startSessionTracking = function() {
 
     //   👇🏻  SMART PERCENTAGE FIX 
     if (isYtLive) {
-      leftFill.style.width = '100%';
-      rightFill.style.width = '0%';
-      leftPercentEl.textContent = '100%   Watched';
-      rightPercentEl.textContent = '0%   Remaining';
+      //   For YouTube Live ,  Calculating  Remaining %  is Messy .  We Show  100 / 0  Unless Scrubbed Back Significantly .
+      if (dur - cur > 15) {
+          //   They Scrubbed Back !!  Show Real Percentages .
+          leftFill.style.width = `${watchedPct.toFixed(2)}%`;
+          rightFill.style.width = `${remPct.toFixed(2)}%`;
+          leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
+          rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+      } else {
+          //   At The Live Edge
+          leftFill.style.width = '100%';
+          rightFill.style.width = '0%';
+          leftPercentEl.textContent = '100%   Watched';
+          rightPercentEl.textContent = '0%   Remaining';
+      }
     } else {
+      //   Normal VOD  Percentage Logic
       if (cur === 0) {
         leftFill.style.width = '0%';
         rightFill.style.width = '100%';
@@ -2344,8 +2362,8 @@ window.startSessionTracking = function() {
       }
     }
 
-    if (window.watchedWave) window.watchedWave.update(isYtLive ? 1 : frac);
-    if (window.remainingWave) window.remainingWave.update(isYtLive ? 0 : 1 - frac);
+    if (window.watchedWave) window.watchedWave.update(isYtLive && (dur - cur <= 15) ? 1 : frac);
+    if (window.remainingWave) window.remainingWave.update(isYtLive && (dur - cur <= 15) ? 0 : 1 - frac);
     
     checkLiveDrift(cur, dur, isYtLive);
   }
@@ -2383,17 +2401,24 @@ window.startSessionTracking = function() {
     //   Stream is Live .  Ensure Button is Visible .
     liveIndicator.style.display = 'flex';
 
-    //   👇🏻  YOUTUBE BYPASS  :  If YouTube Live ,  Strictly Force The GREEN LIVE State To Avoid Mathematical UI Breaking
+    const secondsBehind = liveEdgeTime - cur;
+
+    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  We Now Mathematically Calculate Drift For  YouTube DVR Streams !!
     if (isYtLive) {
-        liveIndicatorText.textContent = "LIVE";
-        liveIndicatorText.style.color = "#16a34a";
-        liveIndicatorDot.style.backgroundColor = "#16a34a";
-        liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+        //   If They Are Within 18 Seconds of The Max Visual Duration ,  They Are at The Live Edge .
+        if (secondsBehind <= 18) {
+            liveIndicatorText.textContent = "LIVE";
+            liveIndicatorText.style.color = "#16a34a";
+            liveIndicatorDot.style.backgroundColor = "#16a34a";
+            liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
+        } else {
+            liveIndicatorText.textContent = "NOT LIVE";
+            liveIndicatorText.style.color = "#ef4444";
+            liveIndicatorDot.style.backgroundColor = "#ef4444";
+            liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
+        }
         return;
     }
-
-    //   Mathematical Drift Check Specifically For PW HLS Streams
-    const secondsBehind = liveEdgeTime - cur;
     
     //   12 - Second  Tolerance For PW Streams
     if (secondsBehind <= 12) { 
