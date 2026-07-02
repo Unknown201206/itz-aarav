@@ -2241,59 +2241,72 @@ window.startSessionTracking = function() {
     let ytDrift = 0;
 
     //   👇🏻  YOUTUBE IFRAME API EXTRACTION
-    if (player.provider === 'youtube' && player.embed) {
-        if (typeof player.embed.getVideoData === 'function') {
-            isYtLive = player.embed.getVideoData().isLive || false;
-        }
-        if (isYtLive) {
-            const ytDur = Number(player.embed.getDuration() || 0);
-            const ytCur = Number(player.embed.getCurrentTime() || 0);
-            //   Calculate Exact Drift Internally Within Google's Engine
-            ytDrift = Math.max(0, ytDur - ytCur);
-        }
+    if (player.provider === 'youtube' && player.embed && typeof player.embed.getVideoData === 'function') {
+        isYtLive = player.embed.getVideoData().isLive || false;
     }
 
-    //   👇🏻  THE DECOUPLED VISUAL SCRAPER 
     const curEl = document.querySelector('.plyr__time--current');
     const durEl = document.querySelector('.plyr__time--duration');
     
     let curText = curEl ? curEl.textContent.trim() : "";
     let durText = durEl ? durEl.textContent.trim() : "";
     
-    //   👇🏻  BLINKING FIX  :  Check if The Text Contains a Minus Sign .  If It Does ,  We Must Ignore It .
+    //   Only Scrape Positive ,  Forward - Moving  Text To Prevent Parsing Negative Anomalies
     let isShowingRemaining = curText.startsWith('-');
-
-    //   Only Scrape If It's a Normal  Forward - Moving  Positive Timestamp
     let scrapedCur = (!isShowingRemaining && curText !== "") ? parseTimeString(curText) : 0;
-    let scrapedDur = (durText !== "") ? parseTimeString(durText) : 0;
+    let scrapedDur = (durText !== "" && !durText.startsWith('-')) ? parseTimeString(durText) : 0;
 
     let cur = rawCur;
     let dur = rawDur;
 
     if (isYtLive) {
-        //   👇🏻  YOUTUBE LIVE MATH FIX  :  High - Water  Mark +  Real - Time  Clock Algorithm
-        if (typeof window.ytMaxSeen === 'undefined') {
-            window.ytMaxSeen = scrapedCur > 0 ? scrapedCur : rawCur;
+        //   👇🏻  THE VIRTUAL PLAYHEAD ENGINE  :  This Isolates Our UI From Google's Background Sleep Glitches .
+        if (typeof window.vCur === 'undefined') {
+            window.vCur = scrapedCur > 0 ? scrapedCur : rawCur;
+            window.vDur = window.vCur;
             window.lastRealTime = Date.now();
         }
-        
-        //   Advance The Theoretical Live Edge By  Wall - Clock  Time
-        const nowTime = Date.now();
-        const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
-        window.lastRealTime = nowTime;
-        
-        window.ytMaxSeen += elapsedSecs;
 
-        //   If We Successfully Scraped a Normal Forward Time That is Higher ,  Sync Up !!
-        if (scrapedCur > window.ytMaxSeen) {
-            window.ytMaxSeen = scrapedCur;
+        let now = Date.now();
+        let elapsed = (now - window.lastRealTime) / 1000;
+        window.lastRealTime = now;
+
+        //   If Playing Normally ,  Manually Advance Our Virtual Clock in Perfect Sync With Real Time
+        if (!player.paused && !isBufferingOrSeeking) {
+            if (elapsed > 0 && elapsed < 3600) {              //   Protects Against Massive  Wall - Clock  Jumps If Tab Was Frozen
+                window.vCur += elapsed;
+            }
         }
 
-        dur = window.ytMaxSeen;
+        //   If We Scraped a Valid Positive Time ,  Cautiously Allow It To Sync Our Memory
+        if (scrapedCur > 0) {
+            let jump = scrapedCur - window.vCur;
+            
+            if (jump > 0) {
+                //   Video Legitimately Jumped Forward  ( e.g. - Resyncing To The Live Edge After a Long Pause )
+                window.vCur = scrapedCur;
+            } else if (jump < 0 && jump > -10) {
+                //   Minor Internal Drift Correction Backwards
+                window.vCur = scrapedCur;
+            } else if (isBufferingOrSeeking && jump <= -10) {
+                //   User Actively Grabbed The Slider & Scrubbed Backward
+                window.vCur = scrapedCur;
+            }
+            //   If The Jump is Massively Negative  ( e.g. -3600s )  & we Aren't Seeking .....
+            //   IT IS THE GOOGLE SLEEP GLITCH !!  The Script Hits This wall & IGNORES The Fake Data !!
+        }
+
+        //   Duration For Live Streams is Strictly The Highest Time We Have Successfully Witnessed
+        if (window.vCur > window.vDur) {
+            window.vDur = window.vCur;
+        }
+
+        cur = window.vCur;
+        dur = window.vDur;
         
-        //   Calculate cur By Subtracting Actual Google Drift From Our Perfect  High - Water  Duration
-        cur = Math.max(0, dur - ytDrift);
-        
+        //   Calculate Exact Internal Drift Based Strictly On Our Unbreakable Memory
+        ytDrift = Math.max(0, dur - cur);
+
     } else {
         //   Normal VOD Math  ( Non - Live )
         if (scrapedCur > 0) cur = scrapedCur;
@@ -2301,10 +2314,10 @@ window.startSessionTracking = function() {
     }
 
     //   👇🏻  DEBUG OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
-    const now = Date.now();
-    if (now - lastDebugLogTime > 4000) {
-        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
-        lastDebugLogTime = now;
+    const nowLog = Date.now();
+    if (nowLog - lastDebugLogTime > 4000) {
+        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | inverted:${window.customTimeInverted}`);
+        lastDebugLogTime = nowLog;
     }
 
     //   👇🏻  DYNAMIC SESSION CARD FIX
@@ -2378,25 +2391,23 @@ window.startSessionTracking = function() {
     if (window.watchedWave) window.watchedWave.update(isYtLive && (ytDrift <= 15) ? 1 : frac);
     if (window.remainingWave) window.remainingWave.update(isYtLive && (ytDrift <= 15) ? 0 : 1 - frac);
     
-    //   👇🏻  COMMAND THE DOM FOR CUSTOM INVERT  ( Overrides Plyr Entirely )
+    //   👇🏻  DOM OVERRIDE COMMAND  :  We forcefully inject our unbreakable memory into the HTML DOM.
+    //   This Ensures That No Matter What Garbage Google's API Tries To Print To The Screen ,  Our Math Always Overrides It On The Very Same Frame .
     if (curEl) {
         if (window.customTimeInverted) {
             let remainingSecs = Math.max(0, dur - cur);
             curEl.textContent = "-" + formatTime(remainingSecs);
         } else if (isYtLive) {
-            //   Force Pure Visual Forward Time To Protect Against Google's API
             curEl.textContent = formatTime(cur);
         }
     }
     
-    //   Force The Duration Element For Live Streams So It Doesn't Show Google's Fake 56 Hours
     if (durEl && isYtLive) {
         durEl.textContent = formatTime(dur);
     }
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
   }
-
 
   function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
     const liveIndicator = document.getElementById('liveIndicator');
@@ -2430,9 +2441,9 @@ window.startSessionTracking = function() {
     //   Stream is Live .  Ensure Button is Visible .
     liveIndicator.style.display = 'flex';
 
-    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  Mathematically Calculate Drift Against Our  High - Water  Mark Tracker
+    //   👇🏻  YOUTUBE DRIFT BYPASS FIX  :  Mathematically Calculate Drift Against Our Virtual Playhead
     if (isYtLive) {
-        //   If They Are Within 18 Seconds of Our  Real - Time  Tracker Edge ,  They Are Live
+        //   If They Are Within 18 Seconds of Our Virtual Edge, They Are Live
         if (ytDrift <= 18) {
             liveIndicatorText.textContent = "LIVE";
             liveIndicatorText.style.color = "#16a34a";
@@ -2476,7 +2487,6 @@ window.startSessionTracking = function() {
               window.player.currentTime = window.hls.liveSyncPosition;
           } else if (isYtLive && window.player.embed && window.player.embed.seekTo) {
               //   👇🏻  YOUTUBE JUMP BYPASS  :  Seek Using Google's Legendary 999999999 Trick !!
-              //   By Seeking To an Impossibly High Number ,  Google's Engine Forcibly Caps It at The Exact True Live Edge .
               window.player.embed.seekTo(999999999, true);
           } else if (window.player.duration && window.player.duration !== Infinity) {
               window.player.currentTime = window.player.duration;
