@@ -2255,14 +2255,13 @@ window.startSessionTracking = function() {
     rightPercentEl.textContent = '100%  Remaining';
   }
 
-
   //   👇🏻  THROTTLED LOGGER  :  Prevents The  Debug Box  From Crashing Your Browser While Constantly Updating
   let lastDebugLogTime = 0;
 
   //   ====================================================================================================
   //               🧠   THE  ULTIMATE  MATH  FIX   :   DECOUPLED  BACKGROUND  CALCULATIONS
   //   ====================================================================================================
-  //   We Have Completely Deleted The  DOMv Scraper  ( parseTimeString ) . 
+  //   We Have Completely Deleted The  DOM Scraper  ( parseTimeString ) . 
   //   By Strictly Using Pure Background Floats  ( player.currentTime ) ,  The  Progress Bars  Are Now  100 % 
   //   Immune To The User Toggling  " Remaining Time "  ( -10:05 )  in The  Plyr UI .  No More Erratic Jumping !!
 
@@ -2285,30 +2284,59 @@ window.startSessionTracking = function() {
         }
         if (typeof player.embed.getDuration === 'function') {
             const ytDur = player.embed.getDuration();
-            //   ✅  BUG  FIX  :  We Blindly Trust  Google's Duration  Now .  No More Manual Tracking Offset !!
             if (ytDur > 0) dur = ytDur;
         }
-        
-        //   ✅  NATIVE  DRIFT  CALCULATION  :  Done Using Mathematically Pure Numbers Directly From  Google
-        ytDrift = Math.max(0, dur - cur);
-
-    } else if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
-       //   ✅  NEW  HLS  FIX  :  Detects  Non - YouTube  Live Streams  ( Custom m3u8 )  &  Syncs  Their Durations  Perfectly !!
-       isYtLive = true; 
-       if (window.hls && window.hls.liveSyncPosition) {
-           dur = window.hls.liveSyncPosition;
-       }
-       ytDrift = Math.max(0, dur - cur);
     }
-    
-    //   ✅  ARCHITECTURAL  CLEANUP  :  The Old  " ytMaxSeen "  &  " lastRealTime "  Block Has Been Permanently Deleted From Here .
-    //   By Deleting It ,,  We Completely Eliminated The  1 - Hour  Timezone / Float Drift  Bug  Seen in The  150 - Hour  stream !!
 
-    //   👇🏻  DEBUG  OUPUT  ( Throttled To Print Only Once Every  4 Seconds )
+    //   ✅  NEW HLS FIX  :  Ensure Custom m3u8 Live Streams are also tracked properly !
+    if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
+        isYtLive = true;
+    }
+
+    if (isYtLive) {
+        //   👇🏻  LIVE MATH FIX  :  High - Water  Mark  Tracker
+        //   Because Native APIs restrict the DVR Window on massive streams , 
+        //   We Track The Highest True Playhead Time Seen To Keep The Math Perfectly Stable .
+        if (typeof window.ytMaxSeen === 'undefined') {
+            window.ytMaxSeen = cur;
+            window.lastRealTime = Date.now();
+        }
+        
+        const nowTime = Date.now();
+        const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
+        window.lastRealTime = nowTime;
+        
+        //   Advance The Theoretical  Live Edge  Smoothly
+        if (!player.paused && !isBufferingOrSeeking) {
+            window.ytMaxSeen += elapsedSecs;
+        }
+
+        //   If user seeks forward to a higher time, update the high-water mark naturally
+        if (cur > window.ytMaxSeen) {
+            window.ytMaxSeen = cur;
+        }
+
+        //   🚨  THE 1-HOUR BUG FIX IS HERE :
+        //   We completely DELETED this line: `if (dur > window.ytMaxSeen) { window.ytMaxSeen = dur; }`
+        //   WHY? Because YouTube's `dur` API randomly spikes (adding 1 hr, or jumping to 29 hrs).
+        //   If we checked `dur > ytMaxSeen`, our tracker permanently locked onto that massive glitch!
+        //   By removing it, we completely isolate our UI from Google's erratic API jumps!
+        
+        //   ✅  HLS SYNC FALLBACK : If it's an HLS stream, use its highly accurate liveSyncPosition
+        if (window.hls && window.hls.liveSyncPosition) {
+            window.ytMaxSeen = window.hls.liveSyncPosition;
+        }
+
+        dur = window.ytMaxSeen;
+        
+        //   Calculate Drift Based Entirely On Floating Point Math
+        ytDrift = Math.max(0, dur - cur);
+    }
+
+    //   👇🏻  DEBUG  OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
     const now = Date.now();
     if (now - lastDebugLogTime > 4000) {
-        //   ✅  UPDATED  LOG  :  Changed  ' isYtLive '  Log Text To  ' isLive '  Since It Now Covers HLS Streams Too .
-        console.log(`[STATE] isLive:${isYtLive} | drift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
+        console.log(`[STATE] isLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
         lastDebugLogTime = now;
     }
 
@@ -2322,7 +2350,7 @@ window.startSessionTracking = function() {
             setSessionDotState("playing");
         }
         
-        //   Format The Actual  Total Duration  Perfectly
+        //   Format The Actual Total Duration Perfectly
         if (isYtLive) {
             if (dur > 0) {
                 document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
@@ -2384,8 +2412,7 @@ window.startSessionTracking = function() {
     if (window.remainingWave) window.remainingWave.update(isYtLive && (ytDrift <= 15) ? 0 : 1 - frac);
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
-  }
-
+ }
 
   function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
     const liveIndicator = document.getElementById('liveIndicator');
