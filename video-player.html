@@ -883,12 +883,21 @@
 
   </style>
 
-  <!-- ✅ Firebase SDKs (App + Auth + Firestore) -->
+  <!--   ✅  Firebase SDKs  ( App + Auth + Firestore )   -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js"></script>
+
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  
+  <script src="/security-shield.js" defer></script>
+
   <script src="/auth-check.js" defer></script>
+
 </head>
+
+
 <body id="themeBody" class="theme-transition bg-white text-black dark:bg-gray-25 dark:text-black text-sm sm:text-base md:text-lg min-h-screen flex flex-col">
 <!--  👆🏻 Can , Replace With this for another background :  
   <body id="themeBody"
@@ -1150,28 +1159,49 @@ if (title) {
   document.title = decoded;
 }
 
+
 const wrapper = document.getElementById("playerWrapper");
 
 
-//   Main Player Load & Gesture Zone Injection
-if (provider === "youtube" && videoID) {
+//   ✅  SECURITY FIX  :  Prevent  Cross - Site  Scripting  ( XSS )  Attacks Via  URL Parameters
+//   This Strips Malicious Code From  Links  Before They Enter Your  DOM .
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag])
+    );
+}
+
+//   Sanitize The  URL Variables  Before Using Them
+const safeVideoID = escapeHTML(videoID);
+const safeVideo = escapeHTML(decodeURIComponent(video));
+
+//   Main Player Load  &  Gesture Zone  Injection
+if (provider === "youtube" && safeVideoID) {
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
-      <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="${videoID}"></div>
+      <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="${safeVideoID}"></div>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
 
-} else if (provider === "html5" && video) {
+} else if (provider === "html5" && safeVideo) {
   wrapper.innerHTML += `
     <div class="relative aspect-video rounded w-full h-full">
       <video id="player" class="rounded w-full h-full" style="background:black;">
-        <source src="${decodeURIComponent(video)}" type="video/mp4" />
+        <source src="${safeVideo}" type="video/mp4" />
       </video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`;
-} else if (provider === "hls" && video) {
+    
+} else if (provider === "hls" && safeVideo) {
   //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
   //   NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute
   wrapper.innerHTML += `
@@ -1348,7 +1378,7 @@ function initAllPlayerEvents(plyrInstance) {
 
 //   Check Provider & Initialize
 if (provider === "hls" && videoElement) {
-  const sourceUrl = decodeURIComponent(video);
+  const sourceUrl = safeVideo;
   // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
 
   //   Safe Global Fallback To Hide The Loader If The Network Fails Early
@@ -2216,6 +2246,7 @@ window.startSessionTracking = function() {
     return `${paddedInt}.${decPart}`;
   }
 
+
   //   Initial UI  ( Before Playback Starts Or At 0:00 )
   function setInitialUI() {
     leftFill.style.width = '0%';
@@ -2225,19 +2256,30 @@ window.startSessionTracking = function() {
   }
 
 
+
   //   👇🏻  THROTTLED LOGGER  :  Prevents The Debug Box From Crashing Your Browser While Constantly Updating
   let lastDebugLogTime = 0;
+
 
   //   👇🏻  HELPER FUNCTION  :  Converts The Visual  " HH:MM:SS "  From Plyr Into Raw Seconds
   function parseTimeString(str) {
       if (!str) return 0;
+      
+      //   ✅  BUG FIX  :  Detect If The User Toggled The Timer To  " Remaining Time "
+      const isNegative = str.includes('-');
+      
+      //   We Still Remove The  Minus Sign  To Do The  Math ,,  But We Remember It !!
       const parts = str.replace(/-/g, '').trim().split(':').reverse();
       let secs = 0;
       if (parts[0]) secs += parseInt(parts[0], 10) || 0;
       if (parts[1]) secs += (parseInt(parts[1], 10) || 0) * 60;
       if (parts[2]) secs += (parseInt(parts[2], 10) || 0) * 3600;
-      return secs;
+      
+      //   ✅  Return  Negative Seconds  If It Was Remaining Time .
+      //   This Forces  updateProgressFromPlayer()  To Safely Ignore It & Stop The Lag !!
+      return isNegative ? -secs : secs;
   }
+  
 
   //   Update While Video is  Playing / Seeking
   function updateProgressFromPlayer() {
