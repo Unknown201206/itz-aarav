@@ -2414,25 +2414,63 @@ window.startSessionTracking = function() {
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
 
-    //   🚀  THE  NATIVE  - 59:54  OVERRIDE  FIX
-    //   Plyr Natively Calculates  Remaining Time  INTERNALLY  &  Drifts Wildly  When The  Tab Sleeps .
-    //   We Use Our Pure  API Math  To Forcefully Overwrite The Broken Numbers On The Screen !!
-    const curEl = document.querySelector('.plyr__time--current');
-    if (curEl) {
-        const isRemaining = curEl.textContent.includes('-');
-        if (isRemaining) {
-            const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
-            curEl.textContent = '-' + formatTime(Math.floor(remainingSecs));
-        } else {
-            curEl.textContent = formatTime(Math.floor(cur));
-        }
-    }
-
+    //   🚀  THE  NATIVE  " - 59:54 "  OVERRIDE  FIX   (  DECOUPLED  FROM  THE  UPDATE  LOOP  )
+    //   Instead of Doing This On a Delay ,  We Just Update The Basic Duration Here .
     const durEl = document.querySelector('.plyr__time--duration');
     if (durEl) {
         durEl.textContent = formatTime(Math.floor(dur));
     }
   }
+
+  //   =================================================================================================================
+  //             🔥   THE  ULTIMATE  PLYR  TEXT  INTERCEPTOR   (  Fixes  The   " - 59:54 "  Click  Glitch  )
+  //   =================================================================================================================
+  //   Plyr's  Internal Math Listens To  Google's  Broken  API  &  Tries To Force a  1 - Hour
+  //   Remaining Time  ( - 59:54 )  The Second You Click The  Toggle .  We use a  MutationObserver 
+  //   To Instantly Intercept & Overwrite The Text Before The Human Eye Can See It !!
+  
+  (function initPlyrTextInterceptor() {
+      //   Wait For The  Plyr UI  To Actually Exist in The  DOM
+      const checkExist = setInterval(() => {
+          const curEl = document.querySelector('.plyr__time--current');
+          if (curEl) {
+              clearInterval(checkExist);
+              
+              //   Set Up The  Aggressive Observer
+              const observer = new MutationObserver(() => {
+                  //   If  Plyr  Tries To Write a Negative Time .....
+                  if (curEl.textContent.includes('-')) {
+                      //   Fetch Our Pure ,  Flawless Math Directly From The Player
+                      const dur = Number(player.duration || 0);
+                      const cur = Number(player.currentTime || 0);
+                      let isYtLive = false;
+                      let drift = Math.max(0, dur - cur);
+                      
+                      //   Verify If We Are Actually  Live  Using Our  Established Logic
+                      if ((player.provider === 'youtube' && player.embed && typeof player.embed.getVideoData === 'function' && player.embed.getVideoData().isLive) ||
+                          (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live))) {
+                          isYtLive = true;
+                          if (window.ytMaxSeen) drift = Math.max(0, window.ytMaxSeen - cur);
+                      }
+                      
+                      const correctRemainingText = '-' + formatTime(Math.floor(isYtLive ? drift : Math.max(0, dur - cur)));
+                      
+                      //   If  Plyr's  Text Doesn't Match Our Pure Math ,  Force It .
+                      if (curEl.textContent !== correctRemainingText) {
+                          //   Disconnect Briefly To Prevent an Infinite Loop of Updates
+                          observer.disconnect();
+                          curEl.textContent = correctRemainingText;
+                          //   Reconnect Instantly
+                          observer.observe(curEl, { childList: true, characterData: true, subtree: true });
+                      }
+                  }
+              });
+              
+              //   Start Watching The Text Element
+              observer.observe(curEl, { childList: true, characterData: true, subtree: true });
+          }
+      }, 500);
+  })();
 
 
   function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
