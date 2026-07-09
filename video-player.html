@@ -2247,7 +2247,7 @@ window.startSessionTracking = function() {
   }
 
 
-  //   Initial UI  ( Before Playback Starts Or At 0:00 )
+  //   Initial UI  ( Before Playback Starts or At 0:00 )
   function setInitialUI() {
     leftFill.style.width = '0%';
     rightFill.style.width = '100%';
@@ -2288,48 +2288,28 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   ✅  NEW HLS FIX  :  Ensure Custom m3u8 Live Streams are also tracked properly !
+    //   ✅  NEW HLS FIX  :  Ensure Custom  m3u8  Live Streams Are Also Tracked Properly !!
     if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
         isYtLive = true;
+        if (window.hls && window.hls.liveSyncPosition) {
+            dur = window.hls.liveSyncPosition;
+        }
     }
 
     if (isYtLive) {
-        //   👇🏻  LIVE MATH FIX  :  High - Water  Mark  Tracker
-        //   Because Native APIs restrict the DVR Window on massive streams , 
-        //   We Track The Highest True Playhead Time Seen To Keep The Math Perfectly Stable .
-        if (typeof window.ytMaxSeen === 'undefined') {
-            window.ytMaxSeen = cur;
-            window.lastRealTime = Date.now();
+        //   🚀  BUG - 2  FIX  :  AUTO - SNAP  CACHE BUSTER
+        //   If  YouTube  Reloads & Gets Trapped in a Cached  DVR  Chunk  ( e.g. -  34 Hours  Instead of  150 Hours ) , 
+        //   We Forcefully Snap The Player To The Absolute Live Edge On The Very First Play Frame !!
+        //   This Wipes The  Cache  & Forces  Google  To Fetch The Maximum  True Duration Manifest .
+        if (typeof window.initialYtLiveSeekDone === 'undefined' && !player.paused && cur > 0) {
+            window.initialYtLiveSeekDone = true;
+            if (player.provider === 'youtube' && player.embed && typeof player.embed.seekTo === 'function') {
+                player.embed.seekTo(999999999, true);
+                console.log("🚀 [AUTO-SNAP] Forcing YouTube to True Live Edge to clear bad cache!");
+            }
         }
         
-        const nowTime = Date.now();
-        const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
-        window.lastRealTime = nowTime;
-        
-        //   Advance The Theoretical  Live Edge  Smoothly
-        if (!player.paused && !isBufferingOrSeeking) {
-            window.ytMaxSeen += elapsedSecs;
-        }
-
-        //   If user seeks forward to a higher time, update the high-water mark naturally
-        if (cur > window.ytMaxSeen) {
-            window.ytMaxSeen = cur;
-        }
-
-        //   🚨  THE 1-HOUR BUG FIX IS HERE :
-        //   We completely DELETED this line: `if (dur > window.ytMaxSeen) { window.ytMaxSeen = dur; }`
-        //   WHY? Because YouTube's `dur` API randomly spikes (adding 1 hr, or jumping to 29 hrs).
-        //   If we checked `dur > ytMaxSeen`, our tracker permanently locked onto that massive glitch!
-        //   By removing it, we completely isolate our UI from Google's erratic API jumps!
-        
-        //   ✅  HLS SYNC FALLBACK : If it's an HLS stream, use its highly accurate liveSyncPosition
-        if (window.hls && window.hls.liveSyncPosition) {
-            window.ytMaxSeen = window.hls.liveSyncPosition;
-        }
-
-        dur = window.ytMaxSeen;
-        
-        //   Calculate Drift Based Entirely On Floating Point Math
+        //   Calculate Drift Based Entirely On Floating Point Math  ( No More Timezone Trackers )
         ytDrift = Math.max(0, dur - cur);
     }
 
@@ -2344,7 +2324,7 @@ window.startSessionTracking = function() {
     if (dur > 0 || isYtLive || cur > 0) {
         if (!isMetadataLoaded) isMetadataLoaded = true;
         
-        //   Kickstart The Watched Clock If Paused State is False
+        //   Kickstart The  Watched Clock  If Paused State is False
         if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
             startSessionTimer();
             setSessionDotState("playing");
@@ -2370,13 +2350,13 @@ window.startSessionTracking = function() {
         return;
     }
 
-    //   👇🏻  BUTTERY SMOOTH PERCENTAGE MATH  ( No  DOM  Text Scraping )
+    //   👇🏻  BUTTERY  SMOOTH  PERCENTAGE  MATH  
     let frac = (dur > 0) ? Math.max(0, Math.min(1, cur / dur)) : 1;
     let watchedPct = frac * 100;
     let remPct = 100 - watchedPct;
 
     if (isYtLive) {
-        //   For  YouTube Live ,,  Show 100 / 0  Unless Scrubbed Back Significantly  ( > 15s )
+        //   For  YouTube Live ,,  Show  100 / 0  Unless Scrubbed Back Significantly  ( > 15s )
         if (ytDrift > 15) {
             leftFill.style.width = `${watchedPct.toFixed(2)}%`;
             rightFill.style.width = `${remPct.toFixed(2)}%`;
@@ -2401,7 +2381,7 @@ window.startSessionTracking = function() {
             leftPercentEl.textContent = '100%   Watched';
             rightPercentEl.textContent = '0%   Remaining';
         } else {
-            leftFill.style.width = `${watchedPct.toFixed(3)}%`; // Using 3 decimals prevents micro-flickers on ultra-long videos
+            leftFill.style.width = `${watchedPct.toFixed(3)}%`;        //   Using  3 Decimals  Prevents  Micro - Flickers  On  Ultra - Long  Videos
             rightFill.style.width = `${remPct.toFixed(3)}%`;
             leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
             rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
@@ -2412,7 +2392,27 @@ window.startSessionTracking = function() {
     if (window.remainingWave) window.remainingWave.update(isYtLive && (ytDrift <= 15) ? 0 : 1 - frac);
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
- }
+
+    //   🚀  BUG - 1  FIX  :  NATIVE  PLYR  UI  OVERRIDE
+    //   Plyr Natively Calculates Remaining Time Internally  &  Drifts By  1 Hour  ( - 59:54 )  When The Tab Sleeps .
+    //   We Use Our Pure  API Math  To Forcefully Overwrite The Numbers On The Screen !!
+    const curEl = document.querySelector('.plyr__time--current');
+    if (curEl) {
+        const isRemaining = curEl.textContent.includes('-');
+        if (isRemaining) {
+            const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
+            curEl.textContent = '-' + formatTime(Math.floor(remainingSecs));
+        } else {
+            curEl.textContent = formatTime(Math.floor(cur));
+        }
+    }
+
+    const durEl = document.querySelector('.plyr__time--duration');
+    if (durEl) {
+        durEl.textContent = formatTime(Math.floor(dur));
+    }
+  }
+
 
   function checkLiveDrift(cur, dur, isYtLive, ytDrift) {
     const liveIndicator = document.getElementById('liveIndicator');
