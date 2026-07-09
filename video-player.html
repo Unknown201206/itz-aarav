@@ -2285,47 +2285,30 @@ window.startSessionTracking = function() {
         }
         if (typeof player.embed.getDuration === 'function') {
             const ytDur = player.embed.getDuration();
+            //   ✅  BUG  FIX  :  We Blindly Trust  Google's Duration  Now .  No More Manual Tracking Offset !!
             if (ytDur > 0) dur = ytDur;
         }
-    }
-
-    if (isYtLive) {
-        //   👇🏻  YOUTUBE LIVE MATH FIX  :  High - Water  Mark  Tracker
-        //   Because  Google's  iframe  API  Restricts The  DVR Window  ( E.g. -  Max  28 Hours ) , 
-        //   We Track The Highest Time Seen To Keep The Math Perfectly Stable .
-        if (typeof window.ytMaxSeen === 'undefined') {
-            window.ytMaxSeen = cur;
-            window.lastRealTime = Date.now();
-        }
         
-        const nowTime = Date.now();
-        const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
-        window.lastRealTime = nowTime;
-        
-        //   Advance The Theoretical  Live Edge  Smoothly
-        if (!player.paused && !isBufferingOrSeeking) {
-            window.ytMaxSeen += elapsedSecs;
-        }
-
-        if (cur > window.ytMaxSeen) {
-            window.ytMaxSeen = cur;
-        }
-
-        //   If Google Grants Us a Larger  DVR  Window ,  Use It .  Otherwise Use Tracker .
-        if (dur > window.ytMaxSeen) {
-            window.ytMaxSeen = dur;
-        }
-        
-        dur = window.ytMaxSeen;
-        
-        //   Calculate Drift Based Entirely On Floating Point Math
+        //   ✅  NATIVE  DRIFT  CALCULATION  :  Done Using Mathematically Pure Numbers Directly From  Google
         ytDrift = Math.max(0, dur - cur);
-    }
 
-    //   👇🏻  DEBUG  OUPUT  ( Throttled To Print Only Once Every 4 Seconds )
+    } else if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
+       //   ✅  NEW  HLS  FIX  :  Detects  Non - YouTube  Live Streams  ( Custom m3u8 )  &  Syncs  Their Durations  Perfectly !!
+       isYtLive = true; 
+       if (window.hls && window.hls.liveSyncPosition) {
+           dur = window.hls.liveSyncPosition;
+       }
+       ytDrift = Math.max(0, dur - cur);
+    }
+    
+    //   ✅  ARCHITECTURAL  CLEANUP  :  The Old  " ytMaxSeen "  &  " lastRealTime "  Block Has Been Permanently Deleted From Here .
+    //   By Deleting It ,,  We Completely Eliminated The  1 - Hour  Timezone / Float Drift  Bug  Seen in The  150 - Hour  stream !!
+
+    //   👇🏻  DEBUG  OUPUT  ( Throttled To Print Only Once Every  4 Seconds )
     const now = Date.now();
     if (now - lastDebugLogTime > 4000) {
-        console.log(`[STATE] isYtLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
+        //   ✅  UPDATED  LOG  :  Changed  ' isYtLive '  Log Text To  ' isLive '  Since It Now Covers HLS Streams Too .
+        console.log(`[STATE] isLive:${isYtLive} | drift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
         lastDebugLogTime = now;
     }
 
@@ -2339,7 +2322,7 @@ window.startSessionTracking = function() {
             setSessionDotState("playing");
         }
         
-        //   Format The Actual Total Duration Perfectly
+        //   Format The Actual  Total Duration  Perfectly
         if (isYtLive) {
             if (dur > 0) {
                 document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
