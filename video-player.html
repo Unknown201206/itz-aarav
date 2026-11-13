@@ -1148,6 +1148,7 @@
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/shaka-player.compiled.js"></script>
 
 <script>
 const params = new URLSearchParams(window.location.search);
@@ -1158,6 +1159,28 @@ const provider = params.get("provider");
 const noSkip = params.has("noskip");     //   ✅ Force to Not Skip the Video
 const skipSeconds = parseFloat(params.get("skip"));        //   ✅ Flexible Skip Timing for " skipSeconds " using Videos
 const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;      //   ✅ Default = 13.8s Skip
+
+//   👇🏻  CLEARKEY DRM PARSER (Supports 1 Key or 2-3+ Keys via &key= or &keys= or &drm=)
+const rawKeyParams = [
+  ...params.getAll("key"),
+  ...params.getAll("keys"),
+  params.get("drm")
+].filter(Boolean);
+
+const clearKeysMap = {};
+rawKeyParams.forEach(paramStr => {
+  //   Splits  Multiple  Keys  Separated  By  Comma  ( , )  ,,   Pipe  ( | )  ,,   or  Space
+  decodeURIComponent(paramStr).split(/[,|\s]+/).forEach(pair => {
+    const parts = pair.trim().split(':');
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      const cleanKid = parts[0].replace(/-/g, '').trim().toLowerCase();
+      const cleanKey = parts[1].replace(/-/g, '').trim().toLowerCase();
+      clearKeysMap[cleanKid] = cleanKey;
+    }
+  });
+});
+const hasDrmKeys = Object.keys(clearKeysMap).length > 0;
+
 
 function formatTime(seconds) {
   seconds = Math.max(0, Math.floor(seconds));
@@ -1219,10 +1242,10 @@ if (provider === "youtube" && safeVideoID) {
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`);
     
-} else if (provider === "hls" && safeVideo) {
+} else if ((provider === "hls" || provider === "drm" || provider === "dash" || hasDrmKeys) && safeVideo) {
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
-      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline></video>
+      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline crossorigin="anonymous"></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`);
@@ -1313,12 +1336,13 @@ function initAllPlayerEvents(plyrInstance) {
   player.on('pause', hideCustomLoader);      //   Safety Net
 
 
-  //   Only Force The Loader Initially For HLS Streams That  Auto - Buffer
-  if (provider === 'hls') {
+  //   Only Force The Loader Initially For HLS & DRM Streams That Auto-Buffer
+  if (provider === 'hls' || provider === 'drm' || provider === 'dash' || hasDrmKeys) {
     showCustomLoader();
   } else {
     hideCustomLoader();
   }
+
 
   //   Invert Time Toggle
   (function() {
@@ -1400,7 +1424,104 @@ function initAllPlayerEvents(plyrInstance) {
 
 
 //   Check Provider & Initialize
-if (provider === "hls" && videoElement) {
+const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys);
+
+if (isDrmOrDash && videoElement) {
+  const sourceUrl = rawVideoUrl;
+  console.log(`[DRM INIT] Loading MPD stream with ${Object.keys(clearKeysMap).length} key(s)`);
+
+  function forceHideLoader() {
+    const loader = document.getElementById('playerLoader');
+    if (loader) loader.classList.remove('show');
+  }
+
+  shaka.polyfill.installAll();
+
+  if (shaka.Player.isBrowserSupported()) {
+    const shakaPlayer = new shaka.Player(videoElement);
+    window.shakaPlayer = shakaPlayer;
+
+    const shakaConfig = {
+      streaming: {
+        bufferingGoal: 30,
+        rebufferingGoal: 2,
+        bufferBehind: 30
+      }
+    };
+
+    if (hasDrmKeys) {
+      shakaConfig.drm = { clearKeys: clearKeysMap };
+      console.log("[DRM KEYS]", JSON.stringify(clearKeysMap));
+    }
+
+    shakaPlayer.configure(shakaConfig);
+
+    shakaPlayer.addEventListener('error', (event) => {
+      const err = event.detail;
+      console.error(`[SHAKA ERROR] Code: ${err.code} | Category: ${err.category}`);
+      forceHideLoader();
+    });
+
+    shakaPlayer.load(sourceUrl).then(() => {
+      console.log("[DRM] Manifest loaded successfully!");
+
+      // Smart Autoplay
+      videoElement.muted = false;
+      videoElement.play().catch(() => {
+        videoElement.muted = true;
+        videoElement.play().then(() => {
+          showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+          const unmuteHandler = () => {
+            videoElement.muted = false;
+            document.removeEventListener('touchstart', unmuteHandler);
+            document.removeEventListener('click', unmuteHandler);
+          };
+          document.addEventListener('touchstart', unmuteHandler, { once: true });
+          document.addEventListener('click', unmuteHandler, { once: true });
+        }).catch(() => {});
+      });
+
+      // Populate Plyr Quality Menu from DASH tracks
+      const tracks = shakaPlayer.getVariantTracks();
+      const availableQualities = tracks.map(t => t.height).filter(Boolean);
+      const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+      uniqueQualities.unshift(0); // 0 = Auto
+
+      plyrConfig.quality = {
+        default: 0,
+        options: uniqueQualities,
+        forced: true,
+        onChange: (newQuality) => {
+          if (newQuality === 0) {
+            shakaPlayer.configure({ abr: { enabled: true } });
+          } else {
+            shakaPlayer.configure({ abr: { enabled: false } });
+            const matching = shakaPlayer.getVariantTracks().filter(t => t.height === newQuality);
+            if (matching.length > 0) {
+              matching.sort((a, b) => b.bandwidth - a.bandwidth);
+              shakaPlayer.selectVariantTrack(matching[0], true);
+            }
+          }
+        }
+      };
+
+      const plyrInstance = new Plyr('#player', plyrConfig);
+      initAllPlayerEvents(plyrInstance);
+
+    }).catch((err) => {
+      console.error(`[DRM LOAD FAIL] Code: ${err.code} | ${err.message || err}`);
+      forceHideLoader();
+      if (!window.player) {
+        const plyrInstance = new Plyr('#player', plyrConfig);
+        initAllPlayerEvents(plyrInstance);
+      }
+    });
+  } else {
+    console.error("[DRM ERROR] Browser does not support EME.");
+    forceHideLoader();
+  }
+
+} else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
   // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
 
