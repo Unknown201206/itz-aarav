@@ -145,7 +145,7 @@
     #playerLoader.show {
       visibility: visible;
       opacity: 1;
-      pointer-events: auto;
+      pointer-events: none;             /*   Allows  Taps  To  Pass  Through  To  The  Video   */
     }
 
     /* loader container — no scaling, just flex column */
@@ -1111,8 +1111,11 @@
     <div style="color:#aaa;">--- WAITING FOR LOGS ---</div>
   </div>
 </div>
+
+
 <script>
-  //   Intercept All Console Logs & Print Them To The Screen
+  
+  //   Intercept  All  Console  Logs  &  Print  Them  To  The  Screen
   const logBox = document.getElementById('mobile-console');
   function printLog(msg, color) {
     if(logBox) {
@@ -1124,8 +1127,23 @@
   console.log = function(...args) { origLog(...args); printLog(args.join(' '), '#aaa'); };
   console.warn = function(...args) { origWarn(...args); printLog('WARN: ' + args.join(' '), '#ffaa00'); };
   console.error = function(...args) { origErr(...args); printLog('ERROR: ' + args.join(' '), '#ff5555'); };
-  window.onerror = function(msg, url, line) { printLog(`FATAL: ${msg} (Line: ${line})`, '#ff5555'); };
-</script>    
+  
+  window.onerror = function(msg, url, line) { 
+    let errStr = msg;
+    if (typeof msg === 'object' && msg !== null) {
+      if (msg.type === 'error' && msg.detail && msg.detail.plyr) {
+        const mErr = msg.detail.plyr.media?.error;
+        errStr = `Plyr Media Crash | Code: ${mErr ? mErr.code : 'Unknown'}`;
+      } else if (msg.type) {
+        errStr = `Native Event(${msg.type}) ${msg.target?.error ? '| Code: ' + msg.target.error.code : ''}`;
+      } else {
+        try { errStr = JSON.stringify(msg); } catch(e) {}
+      }
+    }
+    printLog(`FATAL: ${errStr} (Line: ${line || '?'})`, '#ff5555'); 
+  };
+  
+</script>
 
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
@@ -1178,40 +1196,38 @@ function escapeHTML(str) {
     );
 }
 
-//   Sanitize The  URL Variables  Before Using Them
-const safeVideoID = escapeHTML(videoID);
-const safeVideo = escapeHTML(decodeURIComponent(video));
 
-//   Main Player Load  &  Gesture Zone  Injection
+//   Sanitize The URL Variables & Keep Valid Percent-Encoding (%20) Intact
+const safeVideoID = escapeHTML(videoID);
+const rawVideoUrl = video ? decodeURIComponent(video).trim() : "";
+const safeVideo = escapeHTML(rawVideoUrl ? encodeURI(rawVideoUrl).replace(/%25/g, '%') : "");
+
+//   Main Player Load & Gesture Zone Injection (using insertAdjacentHTML so #playerLoader is not destroyed)
 if (provider === "youtube" && safeVideoID) {
-  wrapper.innerHTML += `
+  wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
       <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="${safeVideoID}"></div>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
-    </div>`;
+    </div>`);
 
 } else if (provider === "html5" && safeVideo) {
-  wrapper.innerHTML += `
+  wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
-      <video id="player" class="rounded w-full h-full" style="background:black;">
-        <source src="${safeVideo}" type="video/mp4" />
-      </video>
+      <video id="player" preload="metadata" playsinline class="rounded w-full h-full" style="background:black;"></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
-    </div>`;
+    </div>`);
     
 } else if (provider === "hls" && safeVideo) {
-  //   NEW HLS BLOCK  :  No Source Tag ;  HLS.js  Feeds The Video Element Directly
-  //   NATIVE SPINNER FIX  :  Removed The  ' controls '  Attribute
-  wrapper.innerHTML += `
+  wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
       <video id="player" class="rounded w-full h-full" style="background:black;" playsinline></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
-    </div>`;
+    </div>`);
 }
-
+  
 
 //   Ensure Gesture Zones Never Overlap The Controls
 function syncGestureZoneBottomToControls() {
@@ -1347,14 +1363,21 @@ function initAllPlayerEvents(plyrInstance) {
       injectInlineVolumeSlider();
       disableGesturesWhileMenusOpen();
 
-      //   Original Skip Logic
+      //   Fixed  Skip  Logic   :   Wait  For  moov  Metadata   (  readyState >= 1  )   &  Seek  Once
       if (!noSkip && player.provider !== 'youtube' && player.media) {
-        player.media.addEventListener("loadedmetadata", () => {
-          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
-        });
-        player.media.addEventListener("play", () => {
-          if (player.media.currentTime < skipSecondsFinal) player.media.currentTime = skipSecondsFinal;
-        });
+        let initialSkipDone = false;
+        const applyInitialSkip = () => {
+          if (initialSkipDone || player.media.readyState < 1) return;
+          initialSkipDone = true;
+          if (player.media.currentTime < skipSecondsFinal) {
+            player.media.currentTime = skipSecondsFinal;
+          }
+        };
+        if (player.media.readyState >= 1) {
+          applyInitialSkip();
+        } else {
+          player.media.addEventListener("loadedmetadata", applyInitialSkip, { once: true });
+        }
       }
       
       //   Original YouTube Quality Hack
@@ -1408,6 +1431,9 @@ if (provider === "hls" && videoElement) {
   if (Hls.isSupported()) {
     const hls = new Hls({ 
       debug: false,
+      maxBufferLength: 30,                       //   Max  Seconds  of  Video  To  Keep  in  Memory  Ahead  of  Playback
+      maxMaxBufferLength: 60,                    //   Absolute  Maximum  Limit  Even  if  RAM  is  Completely  Free
+      maxBufferSize: 50 * 1000 * 1000,           //   Maximum  Buffer  Size  in  Bytes   (  50 MB  )
       xhrSetup: function (xhr, url) { 
         if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
@@ -1512,28 +1538,63 @@ if (provider === "hls" && videoElement) {
     initAllPlayerEvents(plyrInstance);
   }
 } else {
-  //   Immediate Load For  Youtube & HTML5
+  //   Immediate Load For Youtube & HTML5
   const plyrInstance = new Plyr('#player', plyrConfig);
   initAllPlayerEvents(plyrInstance);
   
-  //   👇🏻  HTML5 SMART AUTOPLAY  :  Try Unmuted First ,  Fallback To Muted  ( Same as HLS )
   if (provider === "html5" && videoElement) {
-      videoElement.muted = false;
-      videoElement.play().then(() => {
-          //   Browser Allowed Unmuted Autoplay Based On MEI !!
-      }).catch(() => {
-          //   Fallback To Muted Exploit
-          videoElement.muted = true;
-          videoElement.play().then(() => {
-              showToast("Tap  Anywhere  To  Unmute   🪄  .....");
-              const unmuteHandler = () => {
+      const startHtml5Playback = () => {
+          videoElement.muted = false;
+          videoElement.play().catch(() => {
+              videoElement.muted = true;
+              videoElement.play().then(() => {
+                  showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+                  const unmuteHandler = () => { videoElement.muted = false; };
+                  document.addEventListener('touchstart', unmuteHandler, { once: true });
+                  document.addEventListener('click', unmuteHandler, { once: true });
+              }).catch(() => {
+                  const loader = document.getElementById('playerLoader');
+                  if (loader) loader.classList.remove('show');
+              });
+          });
+      };
+
+      const setupVideoLoad = () => {
+          if (videoElement.readyState >= 1) {
+              startHtml5Playback();
+          } else {
+              videoElement.addEventListener('loadedmetadata', startHtml5Playback, { once: true });
+              
+              const wakeUpDecoder = () => {
+                  const loader = document.getElementById('playerLoader');
+                  if (loader) loader.classList.remove('show');
                   videoElement.muted = false;
-                  //   Respect Device Volume ,  No  100 %  Jump
+                  videoElement.play().catch(()=>{});
+                  document.removeEventListener('touchstart', wakeUpDecoder);
+                  document.removeEventListener('click', wakeUpDecoder);
               };
-              document.addEventListener('touchstart', unmuteHandler, { once: true });
-              document.addEventListener('click', unmuteHandler, { once: true });
-          }).catch(err => {});
-      });
+              document.addEventListener('touchstart', wakeUpDecoder, { once: true });
+              document.addEventListener('click', wakeUpDecoder, { once: true });
+          }
+      };
+
+      //   THE  302  REDIRECT  BYPASS   :   Pre-resolve Archive.org URLs using a fast HEAD request
+      if (safeVideo.includes('archive.org')) {
+          fetch(safeVideo, { method: 'HEAD' })
+            .then(response => {
+                //   response.url contains the final direct iaXXXXX.us.archive.org node!
+                videoElement.src = response.url; 
+                setupVideoLoad();
+            })
+            .catch(err => {
+                //   Fallback just in case network blocks the fetch
+                videoElement.src = safeVideo;
+                setupVideoLoad();
+            });
+      } else {
+          videoElement.src = safeVideo;
+          setupVideoLoad();
+      }
   }
 }
 
@@ -2531,6 +2592,22 @@ window.startSessionTracking = function() {
     window.player.on('loadedmetadata', updateProgressFromPlayer);
     window.player.on('ended', updateProgressFromPlayer);
     setTimeout(updateProgressFromPlayer, 80);
+
+    // 👇🏻 PROGRESSIVE DOWNLOAD TRACKER : Prints buffer state to your debug box every 5 seconds
+    setInterval(() => {
+        if (!window.player || !window.player.media) return;
+        const vid = window.player.media;
+        if (vid.buffered.length > 0 && vid.duration > 0) {
+            const bufferedSeconds = vid.buffered.end(vid.buffered.length - 1);
+            const percent = ((bufferedSeconds / vid.duration) * 100).toFixed(1);
+            
+            // Only log if it's still downloading (less than 99.9%)
+            if (percent < 99.9) {
+                console.log(`[NETWORK] Buffered: ${percent}% (${Math.floor(bufferedSeconds)}s of ${Math.floor(vid.duration)}s)`);
+            }
+        }
+    }, 5000); 
+
     
     //   👇🏻  EVENT SUPPRESSION FIX  :  Google's iframe  Frequently Blocks The  ' timeupdate '  Event On Live Streams .
     //   If The Event Doesn't Fire ,  The  Omni - Scraper  Never Runs .  This Forces It To Run Every 1 Second .
