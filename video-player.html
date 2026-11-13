@@ -1160,6 +1160,13 @@ const noSkip = params.has("noskip");     //   ✅ Force to Not Skip the Video
 const skipSeconds = parseFloat(params.get("skip"));        //   ✅ Flexible Skip Timing for " skipSeconds " using Videos
 const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;      //   ✅ Default = 13.8s Skip
 
+// 🪄 UNIVERSAL PARAMETERS FOR COOKIES, COOKIE URLS & HEADERS
+const customCookie = params.get("cookie");       // e.g. ?cookie=__hdnea__=xyz123...
+const cookieUrl = params.get("cookieUrl");       // e.g. ?cookieUrl=https://api.com/token.json
+const customReferer = params.get("referer") || "https://www.jiotv.com/";
+const customUserAgent = params.get("ua") || "plaYtv/7.1.5 (Linux;Android 13) ExoPlayerLib/2.11.6";
+
+
 //   👇🏻  CLEARKEY DRM PARSER (Supports 1 Key or 2-3+ Keys via &key= or &keys= or &drm=)
 const rawKeyParams = [
   ...params.getAll("key"),
@@ -1462,8 +1469,41 @@ if (isDrmOrDash && videoElement) {
       forceHideLoader();
     });
 
-    shakaPlayer.load(sourceUrl).then(() => {
-      console.log("[DRM] Manifest loaded successfully!");
+    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER
+    (async () => {
+      let resolvedCookie = customCookie || "";
+
+      if (!resolvedCookie && cookieUrl) {
+        try {
+          const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
+          const json = await resp.json();
+          resolvedCookie = json.cookie || json.token || "";
+        } catch (e) {
+          console.warn("[COOKIE URL FETCH FAIL]", e);
+        }
+      }
+
+      if (resolvedCookie || customReferer) {
+        shakaPlayer.getNetworkingEngine().registerRequestFilter(function (type, request) {
+          if (customReferer) request.headers["Referer"] = decodeURIComponent(customReferer);
+          if (customUserAgent) request.headers["User-Agent"] = decodeURIComponent(customUserAgent);
+          
+          if (resolvedCookie) {
+            request.headers["Cookie"] = resolvedCookie;
+            let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
+            
+            if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+                 type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
+                !request.uris[0].includes("__hdnea__") && !request.uris[0].includes("hdnea=")) {
+              const sep = request.uris[0].includes("?") ? "&" : "?";
+              request.uris[0] += sep + "__hdnea=" + urlCookie;
+            }
+          }
+        });
+      }
+
+      shakaPlayer.load(sourceUrl).then(() => {
+        console.log("[DRM] Manifest loaded successfully!");
 
       // Smart Autoplay
       videoElement.muted = false;
@@ -1556,7 +1596,12 @@ if (isDrmOrDash && videoElement) {
       maxMaxBufferLength: 60,                    //   Absolute  Maximum  Limit  Even  if  RAM  is  Completely  Free
       maxBufferSize: 50 * 1000 * 1000,           //   Maximum  Buffer  Size  in  Bytes   (  50 MB  )
       xhrSetup: function (xhr, url) { 
-        if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
+        const headerKey = params.get("headerKey");
+        const headerVal = params.get("headerVal");
+        
+        if (headerKey && headerVal) {
+          xhr.setRequestHeader(headerKey, decodeURIComponent(headerVal));
+        } else if (url.includes('stream-proxy') || url.includes('heroku') || url.includes('/live')) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
         
