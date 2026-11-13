@@ -1469,20 +1469,20 @@ if (isDrmOrDash && videoElement) {
       forceHideLoader();
     });
 
-    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER
-    (async () => {
-      let resolvedCookie = customCookie || "";
+    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER (Promise-based)
+    let cookiePromise = Promise.resolve(customCookie || "");
 
-      if (!resolvedCookie && cookieUrl) {
-        try {
-          const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
-          const json = await resp.json();
-          resolvedCookie = json.cookie || json.token || "";
-        } catch (e) {
+    if (!customCookie && cookieUrl) {
+      cookiePromise = fetch(decodeURIComponent(cookieUrl), { cache: "no-store" })
+        .then(resp => resp.json())
+        .then(json => json.cookie || json.token || "")
+        .catch(e => {
           console.warn("[COOKIE URL FETCH FAIL]", e);
-        }
-      }
+          return "";
+        });
+    }
 
+    cookiePromise.then(resolvedCookie => {
       if (resolvedCookie || customReferer) {
         shakaPlayer.getNetworkingEngine().registerRequestFilter(function (type, request) {
           if (customReferer) request.headers["Referer"] = decodeURIComponent(customReferer);
@@ -1502,8 +1502,9 @@ if (isDrmOrDash && videoElement) {
         });
       }
 
-      shakaPlayer.load(sourceUrl).then(() => {
-        console.log("[DRM] Manifest loaded successfully!");
+      return shakaPlayer.load(sourceUrl);
+    }).then(() => {
+      console.log("[DRM] Manifest loaded successfully!");
 
       // Smart Autoplay
       videoElement.muted = false;
@@ -1549,17 +1550,20 @@ if (isDrmOrDash && videoElement) {
       initAllPlayerEvents(plyrInstance);
 
     }).catch((err) => {
-      console.error(`[DRM LOAD FAIL] Code: ${err.code} | ${err.message || err}`);
+      console.error(`[DRM LOAD FAIL] Code: ${err.code || 'unknown'} | ${err.message || err}`);
       forceHideLoader();
       if (!window.player) {
         const plyrInstance = new Plyr('#player', plyrConfig);
         initAllPlayerEvents(plyrInstance);
       }
     });
+
   } else {
     console.error("[DRM ERROR] Browser does not support EME.");
     forceHideLoader();
   }
+}
+
 
 } else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
