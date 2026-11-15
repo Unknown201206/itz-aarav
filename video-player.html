@@ -1444,9 +1444,9 @@ if (isDrmOrDash && videoElement) {
 
   shaka.polyfill.installAll();
 
+
   if (shaka.Player.isBrowserSupported()) {
     const shakaPlayer = new shaka.Player();
-    shakaPlayer.attach(videoElement);
     window.shakaPlayer = shakaPlayer;
 
     const shakaConfig = {
@@ -1464,73 +1464,49 @@ if (isDrmOrDash && videoElement) {
 
     shakaPlayer.configure(shakaConfig);
 
-    // 🧠 ADVANCED DIAGNOSTIC LOGGER: Extracts exact HTTP failure reasons
-    function logShakaDetail(err, context) {
-      let msg = `[${context}] Code: ${err.code || 'unknown'} | Category: ${err.category || 'unknown'}`;
-      
-      // Error 1001 = BAD_HTTP_STATUS
-      if (err.code === 1001 && err.data) {
-        const uri = err.data[0] || 'Unknown URI';
-        const status = err.data[1] || 'Unknown Status';
-        const responseData = err.data[2] ? "Response body received but hidden" : "No response body";
-        
-        msg += `<br>&nbsp;&nbsp;<span style="color:#ffcc00">HTTP Status:</span> <b style="color:white">${status}</b>`;
-        msg += `<br>&nbsp;&nbsp;<span style="color:#ffcc00">Failed URI:</span> <a href="${uri}" target="_blank" style="color:#38bdf8">${uri.substring(0, 60)}...</a>`;
-        
-        if (status === 403) {
-          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: 403 FORBIDDEN</span><br>The server rejected your request. Your token/cookie is either expired, invalid, or you are missing the correct Referer/User-Agent headers.`;
-        } else if (status === 404) {
-          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: 404 NOT FOUND</span><br>The stream link is dead or geo-blocked.`;
-        } else if (status === 0) {
-          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: CORS / NETWORK BLOCKED</span><br>The server blocked the request due to CORS (Cross-Origin Policy) or your internet dropped.`;
-        }
-      } else if (err.code === 6001) {
-        msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: DRM KEY MISMATCH</span><br>The provided ClearKeys do not match this stream, or the browser doesn't support the required DRM system.`;
-      } else {
-        msg += `<br>&nbsp;&nbsp;Data: ${JSON.stringify(err.data || {})}`;
-      }
-      console.error(msg);
-    }
-
     shakaPlayer.addEventListener('error', (event) => {
       logShakaDetail(event.detail, "SHAKA EVENT");
       forceHideLoader();
     });
 
-    //   🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER (Promise-based)
-    let cookiePromise = Promise.resolve(customCookie || "");
+    // 🪄 FIX 1: Properly wait for the player to attach to the video element
+    shakaPlayer.attach(videoElement).then(() => {
+      
+      let cookiePromise = Promise.resolve(customCookie || "");
 
-    if (!customCookie && cookieUrl) {
-      cookiePromise = fetch(decodeURIComponent(cookieUrl), { cache: "no-store" })
-        .then(resp => resp.json())
-        .then(json => json.cookie || json.token || "")
-        .catch(e => {
-          console.warn("[COOKIE URL FETCH FAIL]", e);
-          return "";
-        });
-    }
+      if (!customCookie && cookieUrl) {
+        cookiePromise = fetch(decodeURIComponent(cookieUrl), { cache: "no-store" })
+          .then(resp => resp.json())
+          .then(json => json.cookie || json.token || "")
+          .catch(e => {
+            console.warn("[COOKIE URL FETCH FAIL]", e);
+            return "";
+          });
+      }
+      return cookiePromise;
 
-    cookiePromise.then(resolvedCookie => {
-      if (resolvedCookie || customReferer) {
+    }).then(resolvedCookie => {
+
+      // 🪄 FIX 2: Revert to EXACTLY the logic from your working HTML file!
+      if (resolvedCookie) {
         shakaPlayer.getNetworkingEngine().registerRequestFilter(function (type, request) {
-          if (customReferer) request.headers["Referer"] = decodeURIComponent(customReferer);
-          if (customUserAgent) request.headers["User-Agent"] = decodeURIComponent(customUserAgent);
+          request.headers["Referer"] = customReferer ? decodeURIComponent(customReferer) : "https://www.jiotv.com/";
+          request.headers["User-Agent"] = customUserAgent ? decodeURIComponent(customUserAgent) : "plaYtv/7.1.5 (Linux;Android 13) ExoPlayerLib/2.11.6";
+          request.headers["Cookie"] = resolvedCookie;
+
+          let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
           
-          if (resolvedCookie) {
-            //   Note  :  Browsers  Block  Manual   Cookie / Referer   Headers  ,,   So  The  URL  Query  Param  is  What  Actually  Authenticates  it  !!
-            let urlCookie = resolvedCookie.replace(/^__hdnea=/, '');
-            
-            if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
-                 type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
-                !request.uris[0].includes("__hdnea=") && !request.uris[0].includes("hdnea=")) {
-              const sep = request.uris[0].includes("?") ? "&" : "?";
-              request.uris[0] += sep + "__hdnea=" + urlCookie;
-            }
+          if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+               type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
+              !request.uris[0].includes("__hdnea__")) {
+            const sep = request.uris[0].includes("?") ? "&" : "?";
+            request.uris[0] += sep + "__hdnea=" + urlCookie;
           }
         });
       }
 
       return shakaPlayer.load(sourceUrl);
+
     }).then(() => {
       console.log("[DRM] Manifest loaded successfully!");
 
@@ -1590,7 +1566,8 @@ if (isDrmOrDash && videoElement) {
     console.error("[DRM ERROR] Browser does not support EME.");
     forceHideLoader();
   }
-}  // <--- Keep only this one closing brace for the `if (isDrmOrDash)` block
+}
+
 
 else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
