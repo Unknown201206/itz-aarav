@@ -1446,7 +1446,7 @@ if (isDrmOrDash && videoElement) {
 
 
   if (shaka.Player.isBrowserSupported()) {
-    const shakaPlayer = new shaka.Player(videoElement);
+    const shakaPlayer = new shaka.Player();
     window.shakaPlayer = shakaPlayer;
 
     const shakaConfig = {
@@ -1465,44 +1465,42 @@ if (isDrmOrDash && videoElement) {
     shakaPlayer.configure(shakaConfig);
 
     shakaPlayer.addEventListener('error', (event) => {
-      logShakaDetail(event.detail, "SHAKA EVENT");
+      if (typeof logShakaDetail === 'function') logShakaDetail(event.detail, "SHAKA EVENT");
       forceHideLoader();
     });
 
-    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER
+    // 🪄 EXACT LOGIC COPIED FROM YOUR WORKING SITE
     (async () => {
-      let resolvedCookie = customCookie || "";
-
-      if (!resolvedCookie && cookieUrl) {
-        try {
-          const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
-          const json = await resp.json();
-          resolvedCookie = json.cookie || json.token || "";
-        } catch (e) {
-          console.warn("[COOKIE URL FETCH FAIL]", e);
-        }
-      }
-
-      if (resolvedCookie || customReferer) {
-        shakaPlayer.getNetworkingEngine().registerRequestFilter(function (type, request) {
-          if (customReferer) request.headers["Referer"] = decodeURIComponent(customReferer);
-          if (customUserAgent) request.headers["User-Agent"] = decodeURIComponent(customUserAgent);
-          
-          if (resolvedCookie) {
-            request.headers["Cookie"] = resolvedCookie;
-            let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
-            
-            if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
-                 type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
-                !request.uris[0].includes("__hdnea__") && !request.uris[0].includes("hdnea=")) {
-              const sep = request.uris[0].includes("?") ? "&" : "?";
-              request.uris[0] += sep + "__hdnea=" + urlCookie;
-            }
-          }
-        });
-      }
-
       try {
+        await shakaPlayer.attach(videoElement);
+
+        let resolvedCookie = customCookie || "";
+        if (!resolvedCookie && cookieUrl) {
+          try {
+            const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
+            const json = await resp.json();
+            resolvedCookie = json.cookie || json.token || "";
+          } catch (e) {
+            console.warn("[COOKIE URL FETCH FAIL]", e);
+          }
+        }
+
+        if (resolvedCookie) {
+          shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
+            request.headers = request.headers || {};
+            request.headers["Cookie"] = resolvedCookie;
+
+            const isMedia =
+              type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+              type === shaka.net.NetworkingEngine.RequestType.SEGMENT;
+
+            if (isMedia && request.uris && request.uris[0] && !request.uris[0].includes("__hdnea__")) {
+              const token = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
+              request.uris[0] += (request.uris[0].includes("?") ? "&" : "?") + "__hdnea=" + token;
+            }
+          });
+        }
+
         await shakaPlayer.load(sourceUrl);
         console.log("[DRM] Manifest loaded successfully!");
 
@@ -1547,9 +1545,10 @@ if (isDrmOrDash && videoElement) {
         };
 
       } catch (err) {
-        logShakaDetail(err, "DRM LOAD FAIL");
+        if (typeof logShakaDetail === 'function') logShakaDetail(err, "DRM LOAD FAIL");
+        else console.error(err);
       } finally {
-        // 🪄 CRITICAL: Build the UI regardless of whether the stream loaded or failed!
+        // 🪄 GUARANTEES UI BUILDS AND BLACK SCREEN DISAPPEARS
         forceHideLoader();
         if (!window.player) {
           const plyrInstance = new Plyr('#player', plyrConfig);
@@ -1563,6 +1562,7 @@ if (isDrmOrDash && videoElement) {
     forceHideLoader();
   }
 }
+
 
 else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
