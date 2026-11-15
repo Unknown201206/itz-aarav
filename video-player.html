@@ -1562,10 +1562,9 @@ if (isDrmOrDash && videoElement) {
     console.error("[DRM ERROR] Browser does not support EME.");
     forceHideLoader();
   }
-}
+}  // <--- Keep only this one closing brace for the `if (isDrmOrDash)` block
 
-
-} else if (provider === "hls" && videoElement) {
+else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
   // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
 
