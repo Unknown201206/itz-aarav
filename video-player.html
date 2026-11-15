@@ -1446,7 +1446,7 @@ if (isDrmOrDash && videoElement) {
 
 
   if (shaka.Player.isBrowserSupported()) {
-    const shakaPlayer = new shaka.Player();
+    const shakaPlayer = new shaka.Player(videoElement);
     window.shakaPlayer = shakaPlayer;
 
     const shakaConfig = {
@@ -1469,105 +1469,100 @@ if (isDrmOrDash && videoElement) {
       forceHideLoader();
     });
 
-    // 🪄 FIX 1: Properly wait for the player to attach to the video element
-    shakaPlayer.attach(videoElement).then(() => {
-      
-      let cookiePromise = Promise.resolve(customCookie || "");
+    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER
+    (async () => {
+      let resolvedCookie = customCookie || "";
 
-      if (!customCookie && cookieUrl) {
-        cookiePromise = fetch(decodeURIComponent(cookieUrl), { cache: "no-store" })
-          .then(resp => resp.json())
-          .then(json => json.cookie || json.token || "")
-          .catch(e => {
-            console.warn("[COOKIE URL FETCH FAIL]", e);
-            return "";
-          });
+      if (!resolvedCookie && cookieUrl) {
+        try {
+          const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
+          const json = await resp.json();
+          resolvedCookie = json.cookie || json.token || "";
+        } catch (e) {
+          console.warn("[COOKIE URL FETCH FAIL]", e);
+        }
       }
-      return cookiePromise;
 
-    }).then(resolvedCookie => {
-
-      // 🪄 FIX 2: Revert to EXACTLY the logic from your working HTML file!
-      if (resolvedCookie) {
+      if (resolvedCookie || customReferer) {
         shakaPlayer.getNetworkingEngine().registerRequestFilter(function (type, request) {
-          request.headers["Referer"] = customReferer ? decodeURIComponent(customReferer) : "https://www.jiotv.com/";
-          request.headers["User-Agent"] = customUserAgent ? decodeURIComponent(customUserAgent) : "plaYtv/7.1.5 (Linux;Android 13) ExoPlayerLib/2.11.6";
-          request.headers["Cookie"] = resolvedCookie;
-
-          let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
+          if (customReferer) request.headers["Referer"] = decodeURIComponent(customReferer);
+          if (customUserAgent) request.headers["User-Agent"] = decodeURIComponent(customUserAgent);
           
-          if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
-               type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
-              !request.uris[0].includes("__hdnea__")) {
-            const sep = request.uris[0].includes("?") ? "&" : "?";
-            request.uris[0] += sep + "__hdnea=" + urlCookie;
+          if (resolvedCookie) {
+            request.headers["Cookie"] = resolvedCookie;
+            let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
+            
+            if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+                 type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
+                !request.uris[0].includes("__hdnea__") && !request.uris[0].includes("hdnea=")) {
+              const sep = request.uris[0].includes("?") ? "&" : "?";
+              request.uris[0] += sep + "__hdnea=" + urlCookie;
+            }
           }
         });
       }
 
-      return shakaPlayer.load(sourceUrl);
+      try {
+        await shakaPlayer.load(sourceUrl);
+        console.log("[DRM] Manifest loaded successfully!");
 
-    }).then(() => {
-      console.log("[DRM] Manifest loaded successfully!");
+        // Smart Autoplay
+        videoElement.muted = false;
+        videoElement.play().catch(() => {
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+            showToast("Tap Anywhere To Unmute 🪄 .....");
+            const unmuteHandler = () => {
+              videoElement.muted = false;
+              document.removeEventListener('touchstart', unmuteHandler);
+              document.removeEventListener('click', unmuteHandler);
+            };
+            document.addEventListener('touchstart', unmuteHandler, { once: true });
+            document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(() => {});
+        });
 
-      // Smart Autoplay
-      videoElement.muted = false;
-      videoElement.play().catch(() => {
-        videoElement.muted = true;
-        videoElement.play().then(() => {
-          showToast("Tap  Anywhere  To  Unmute   🪄  .....");
-          const unmuteHandler = () => {
-            videoElement.muted = false;
-            document.removeEventListener('touchstart', unmuteHandler);
-            document.removeEventListener('click', unmuteHandler);
-          };
-          document.addEventListener('touchstart', unmuteHandler, { once: true });
-          document.addEventListener('click', unmuteHandler, { once: true });
-        }).catch(() => {});
-      });
+        // Populate Plyr Quality Menu from DASH tracks
+        const tracks = shakaPlayer.getVariantTracks();
+        const availableQualities = tracks.map(t => t.height).filter(Boolean);
+        const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+        uniqueQualities.unshift(0); // 0 = Auto
 
-      // Populate Plyr Quality Menu from DASH tracks
-      const tracks = shakaPlayer.getVariantTracks();
-      const availableQualities = tracks.map(t => t.height).filter(Boolean);
-      const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
-      uniqueQualities.unshift(0); // 0 = Auto
-
-      plyrConfig.quality = {
-        default: 0,
-        options: uniqueQualities,
-        forced: true,
-        onChange: (newQuality) => {
-          if (newQuality === 0) {
-            shakaPlayer.configure({ abr: { enabled: true } });
-          } else {
-            shakaPlayer.configure({ abr: { enabled: false } });
-            const matching = shakaPlayer.getVariantTracks().filter(t => t.height === newQuality);
-            if (matching.length > 0) {
-              matching.sort((a, b) => b.bandwidth - a.bandwidth);
-              shakaPlayer.selectVariantTrack(matching[0], true);
+        plyrConfig.quality = {
+          default: 0,
+          options: uniqueQualities,
+          forced: true,
+          onChange: (newQuality) => {
+            if (newQuality === 0) {
+              shakaPlayer.configure({ abr: { enabled: true } });
+            } else {
+              shakaPlayer.configure({ abr: { enabled: false } });
+              const matching = shakaPlayer.getVariantTracks().filter(t => t.height === newQuality);
+              if (matching.length > 0) {
+                matching.sort((a, b) => b.bandwidth - a.bandwidth);
+                shakaPlayer.selectVariantTrack(matching[0], true);
+              }
             }
           }
+        };
+
+      } catch (err) {
+        logShakaDetail(err, "DRM LOAD FAIL");
+      } finally {
+        // 🪄 CRITICAL: Build the UI regardless of whether the stream loaded or failed!
+        forceHideLoader();
+        if (!window.player) {
+          const plyrInstance = new Plyr('#player', plyrConfig);
+          initAllPlayerEvents(plyrInstance);
         }
-      };
-
-      const plyrInstance = new Plyr('#player', plyrConfig);
-      initAllPlayerEvents(plyrInstance);
-
-    }).catch((err) => {
-      logShakaDetail(err, "DRM LOAD FAIL");
-      forceHideLoader();
-      if (!window.player) {
-        const plyrInstance = new Plyr('#player', plyrConfig);
-        initAllPlayerEvents(plyrInstance);
       }
-    });
+    })();
 
   } else {
     console.error("[DRM ERROR] Browser does not support EME.");
     forceHideLoader();
   }
 }
-
 
 else if (provider === "hls" && videoElement) {
   const sourceUrl = safeVideo;
