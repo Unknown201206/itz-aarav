@@ -1445,7 +1445,8 @@ if (isDrmOrDash && videoElement) {
   shaka.polyfill.installAll();
 
   if (shaka.Player.isBrowserSupported()) {
-    const shakaPlayer = new shaka.Player(videoElement);
+    const shakaPlayer = new shaka.Player();
+    shakaPlayer.attach(videoElement);
     window.shakaPlayer = shakaPlayer;
 
     const shakaConfig = {
@@ -1489,12 +1490,12 @@ if (isDrmOrDash && videoElement) {
           if (customUserAgent) request.headers["User-Agent"] = decodeURIComponent(customUserAgent);
           
           if (resolvedCookie) {
-            request.headers["Cookie"] = resolvedCookie;
-            let urlCookie = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
+            //   Note  :  Browsers  Block  Manual   Cookie / Referer   Headers  ,,   So  The  URL  Query  Param  is  What  Actually  Authenticates  it  !!
+            let urlCookie = resolvedCookie.replace(/^__hdnea=/, '');
             
             if ((type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
                  type === shaka.net.NetworkingEngine.RequestType.SEGMENT) &&
-                !request.uris[0].includes("__hdnea__") && !request.uris[0].includes("hdnea=")) {
+                !request.uris[0].includes("__hdnea=") && !request.uris[0].includes("hdnea=")) {
               const sep = request.uris[0].includes("?") ? "&" : "?";
               request.uris[0] += sep + "__hdnea=" + urlCookie;
             }
