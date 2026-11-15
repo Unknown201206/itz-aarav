@@ -1464,13 +1464,40 @@ if (isDrmOrDash && videoElement) {
 
     shakaPlayer.configure(shakaConfig);
 
+    // 🧠 ADVANCED DIAGNOSTIC LOGGER: Extracts exact HTTP failure reasons
+    function logShakaDetail(err, context) {
+      let msg = `[${context}] Code: ${err.code || 'unknown'} | Category: ${err.category || 'unknown'}`;
+      
+      // Error 1001 = BAD_HTTP_STATUS
+      if (err.code === 1001 && err.data) {
+        const uri = err.data[0] || 'Unknown URI';
+        const status = err.data[1] || 'Unknown Status';
+        const responseData = err.data[2] ? "Response body received but hidden" : "No response body";
+        
+        msg += `<br>&nbsp;&nbsp;<span style="color:#ffcc00">HTTP Status:</span> <b style="color:white">${status}</b>`;
+        msg += `<br>&nbsp;&nbsp;<span style="color:#ffcc00">Failed URI:</span> <a href="${uri}" target="_blank" style="color:#38bdf8">${uri.substring(0, 60)}...</a>`;
+        
+        if (status === 403) {
+          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: 403 FORBIDDEN</span><br>The server rejected your request. Your token/cookie is either expired, invalid, or you are missing the correct Referer/User-Agent headers.`;
+        } else if (status === 404) {
+          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: 404 NOT FOUND</span><br>The stream link is dead or geo-blocked.`;
+        } else if (status === 0) {
+          msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: CORS / NETWORK BLOCKED</span><br>The server blocked the request due to CORS (Cross-Origin Policy) or your internet dropped.`;
+        }
+      } else if (err.code === 6001) {
+        msg += `<br><br><span style="color:#ef4444; font-weight:bold;">🚨 DIAGNOSIS: DRM KEY MISMATCH</span><br>The provided ClearKeys do not match this stream, or the browser doesn't support the required DRM system.`;
+      } else {
+        msg += `<br>&nbsp;&nbsp;Data: ${JSON.stringify(err.data || {})}`;
+      }
+      console.error(msg);
+    }
+
     shakaPlayer.addEventListener('error', (event) => {
-      const err = event.detail;
-      console.error(`[SHAKA ERROR] Code: ${err.code} | Category: ${err.category}`);
+      logShakaDetail(event.detail, "SHAKA EVENT");
       forceHideLoader();
     });
 
-    // 🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER (Promise-based)
+    //   🪄 UNIVERSAL NETWORKING ENGINE FILTER & COOKIE FETCHER (Promise-based)
     let cookiePromise = Promise.resolve(customCookie || "");
 
     if (!customCookie && cookieUrl) {
@@ -1551,7 +1578,7 @@ if (isDrmOrDash && videoElement) {
       initAllPlayerEvents(plyrInstance);
 
     }).catch((err) => {
-      console.error(`[DRM LOAD FAIL] Code: ${err.code || 'unknown'} | ${err.message || err}`);
+      logShakaDetail(err, "DRM LOAD FAIL");
       forceHideLoader();
       if (!window.player) {
         const plyrInstance = new Plyr('#player', plyrConfig);
