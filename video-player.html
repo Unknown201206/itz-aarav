@@ -1169,6 +1169,7 @@ const channelId = params.get("id") || "";
 const customReferer = params.get("referer") || "";
 const customUserAgent = params.get("ua") || "";
 const useProxy = params.get("proxy") === "1" || params.has("proxy");
+const customLicenseUrl = params.get("licenseUrl") || params.get("license") || "";
 
 //   👇🏻  CLEARKEY  DRM  PARSER   (  Supports  &key=  ,   &keys=  ,   &drm=   With  Comma  ,,   Pipe  ,,   Or  Space  Separation  )
 const rawKeyParams = [
@@ -1445,7 +1446,7 @@ function logShakaDetail(err, label = "SHAKA ERROR") {
   console.error(`[${label}] Code: ${code} (Cat: ${category}) ${data ? "-> " + data : err.message || ""}`);
 }
 
-const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys || Boolean(apiUrl));
+const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys || Boolean(customLicenseUrl) || Boolean(apiUrl));
 
 if (isDrmOrDash && videoElement) {
   function forceHideLoader() {
@@ -1459,8 +1460,108 @@ if (isDrmOrDash && videoElement) {
     const shakaPlayer = new shaka.Player();
     window.shakaPlayer = shakaPlayer;
 
-    shakaPlayer.addEventListener('error', (event) => {
-      logShakaDetail(event.detail, "SHAKA EVENT");
+    let finalStreamUrl = rawVideoUrl;
+    let resolvedCookie = customCookie;
+    let resolvedReferer = customReferer;
+    let resolvedUA = customUserAgent;
+    let resolvedLicenseUrl = customLicenseUrl;
+
+    let isRefreshingToken = false;
+    let lastRefreshAt = 0;
+
+    //   Shared  Helper  :  Initial  Fetch  +  Silent  Mid - Match  Token / Key  Refresh
+    async function fetchChannelConfig(forceRefresh = false) {
+      //   1.  Optional   :   Fetch  Channel  Config  Dynamically  From  Any  JSON  API   (  ?api=...&id=...  )
+      if (apiUrl) {
+        console.log(`[  API  ]   ${forceRefresh ?  " Refreshing "  :  " Fetching "}   Channel  Config  From   ${apiUrl}`);
+        const res = await fetch(decodeURIComponent(apiUrl), { cache: "no-store" });
+        if (!res.ok) throw new Error(`API HTTP ${res.status}`);
+        const data = await res.json();
+        const channels = Array.isArray(data) ? data : (data.channels || data.data || data.items || []);
+        const ch = channelId
+          ? channels.find(c => c && (c.id === channelId || c.name === channelId))
+          : channels[0];
+
+        if (!ch) throw new Error(`Channel "${channelId}" not found in API`);
+        if (forceRefresh || !finalStreamUrl) {
+          const freshUrl = ch.stream_url || ch.url || ch.mpd || "";
+          if (freshUrl) finalStreamUrl = freshUrl;
+        }
+        if (forceRefresh || !resolvedCookie) {
+          const freshCookie = ch.cookie || ch.token || "";
+          if (freshCookie) resolvedCookie = freshCookie;
+        }
+        if ((forceRefresh || !resolvedReferer) && ch.referer) resolvedReferer = ch.referer;
+        if ((forceRefresh || !resolvedUA) && ch.user_agent) resolvedUA = ch.user_agent;
+        if (forceRefresh || !resolvedLicenseUrl) {
+          const freshLic = ch.license_url || ch.licenseUrl || ch.license || "";
+          if (freshLic) resolvedLicenseUrl = freshLic;
+        }
+
+        if ((forceRefresh || !hasDrmKeys) && (ch.key || ch.drmKeys || ch.keys)) {
+          addClearKeys(ch.key || ch.drmKeys || ch.keys);
+          hasDrmKeys = Object.keys(clearKeysMap).length > 0;
+        }
+        if (ch.name && !title) {
+          document.getElementById("videoTitle").textContent = ch.name;
+          document.title = ch.name;
+        }
+      }
+
+      //   2.  Optional   :   Fetch  Standalone  Cookie / Token  URL   (  ?cookieUrl=...  )
+      if ((forceRefresh || !resolvedCookie) && cookieUrl) {
+        try {
+          const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
+          const text = await resp.text();
+          try {
+            const json = JSON.parse(text);
+            const fresh = json.cookie || json.token || json.hdnea || "";
+            if (fresh) resolvedCookie = fresh;
+          } catch {
+            if (text.trim()) resolvedCookie = text.trim();
+          }
+        } catch (e) {
+          console.warn("[  COOKIE  URL  FAIL  ]", e);
+        }
+      }
+    }
+
+    //   Auto - Recovery  Listener  :  Silently  Refreshes  Expired  401 / 403  Tokens  Mid - Match
+    shakaPlayer.addEventListener('error', async (event) => {
+      const err = event.detail;
+      logShakaDetail(err, "SHAKA  EVENT");
+
+      const httpStatus = Array.isArray(err?.data) ? err.data[1] : null;
+      const isAuthExpired = err?.code === 1001 && (httpStatus === 401 || httpStatus === 403);
+      const canRefresh = Boolean(apiUrl || cookieUrl);
+      const cooldownPassed = (Date.now() - lastRefreshAt) > 30000;
+
+      if (isAuthExpired && canRefresh && !isRefreshingToken && cooldownPassed) {
+        isRefreshingToken = true;
+        lastRefreshAt = Date.now();
+        console.warn(`[  AUTO - RECOVERY  ]   HTTP   ${httpStatus}   Detected  .   Refreshing  Token  &  Keys  Silently   🕊️  .......`);
+        showToast("Refreshing  Live  Token   🕊️  .......");
+
+        try {
+          await fetchChannelConfig(true);
+          if (hasDrmKeys || resolvedLicenseUrl) {
+            const drmCfg = {};
+            if (hasDrmKeys) drmCfg.clearKeys = clearKeysMap;
+            if (resolvedLicenseUrl) drmCfg.servers = { 'com.widevine.alpha': resolvedLicenseUrl };
+            shakaPlayer.configure({ drm: drmCfg });
+          }
+          await shakaPlayer.load(finalStreamUrl);
+          videoElement.play().catch(() => {});
+          console.log("[  AUTO - RECOVERY  ]   Stream  Resumed  With  Fresh  Token  !!");
+        } catch (recErr) {
+          logShakaDetail(recErr, "AUTO - RECOVERY  FAILED");
+        } finally {
+          isRefreshingToken = false;
+          forceHideLoader();
+        }
+        return;
+      }
+
       forceHideLoader();
     });
 
@@ -1468,52 +1569,7 @@ if (isDrmOrDash && videoElement) {
       try {
         await shakaPlayer.attach(videoElement);
 
-        let finalStreamUrl = rawVideoUrl;
-        let resolvedCookie = customCookie;
-        let resolvedReferer = customReferer;
-        let resolvedUA = customUserAgent;
-
-        //   1.  Optional   :   Fetch  Channel  Config  Dynamically  From  Any  JSON  API   (  ?api=...&id=...  )
-        if (apiUrl) {
-          console.log(`[  API  ]   Fetching  Channel  Config  From   ${apiUrl}`);
-          const res = await fetch(decodeURIComponent(apiUrl), { cache: "no-store" });
-          if (!res.ok) throw new Error(`API HTTP ${res.status}`);
-          const data = await res.json();
-          const channels = Array.isArray(data) ? data : (data.channels || data.data || data.items || []);
-          const ch = channelId
-            ? channels.find(c => c && (c.id === channelId || c.name === channelId))
-            : channels[0];
-
-          if (!ch) throw new Error(`Channel "${channelId}" not found in API`);
-          if (!finalStreamUrl) finalStreamUrl = ch.stream_url || ch.url || ch.mpd || "";
-          if (!resolvedCookie) resolvedCookie = ch.cookie || ch.token || "";
-          if (!resolvedReferer && ch.referer) resolvedReferer = ch.referer;
-          if (!resolvedUA && ch.user_agent) resolvedUA = ch.user_agent;
-          if (!hasDrmKeys && (ch.key || ch.drmKeys || ch.keys)) {
-            addClearKeys(ch.key || ch.drmKeys || ch.keys);
-            hasDrmKeys = Object.keys(clearKeysMap).length > 0;
-          }
-          if (ch.name && !title) {
-            document.getElementById("videoTitle").textContent = ch.name;
-            document.title = ch.name;
-          }
-        }
-
-        //   2.  Optional   :   Fetch  Standalone   Cookie / Token  URL   (  ?cookieUrl=...  )
-        if (!resolvedCookie && cookieUrl) {
-          try {
-            const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
-            const text = await resp.text();
-            try {
-              const json = JSON.parse(text);
-              resolvedCookie = json.cookie || json.token || json.hdnea || "";
-            } catch {
-              resolvedCookie = text.trim();
-            }
-          } catch (e) {
-            console.warn("[  COOKIE  URL  FAIL  ]", e);
-          }
-        }
+        await fetchChannelConfig(false);
 
         if (!finalStreamUrl) throw new Error("No  Stream  URL  Provided  or  Found  in  API  .");
 
@@ -1529,9 +1585,16 @@ if (isDrmOrDash && videoElement) {
           }
         };
 
-        if (hasDrmKeys) {
-          shakaConfig.drm = { clearKeys: clearKeysMap };
-          console.log(`[  DRM  ]   Configured   ${Object.keys(clearKeysMap).length}   ClearKey(s)`);
+        if (hasDrmKeys || resolvedLicenseUrl) {
+          shakaConfig.drm = {};
+          if (hasDrmKeys) {
+            shakaConfig.drm.clearKeys = clearKeysMap;
+            console.log(`[  DRM  ]   Configured   ${Object.keys(clearKeysMap).length}   ClearKey(s)`);
+          }
+          if (resolvedLicenseUrl) {
+            shakaConfig.drm.servers = { 'com.widevine.alpha': resolvedLicenseUrl };
+            console.log(`[  DRM  ]   Configured  Widevine  License  Server`);
+          }
         }
 
         shakaPlayer.configure(shakaConfig);
