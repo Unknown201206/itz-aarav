@@ -584,7 +584,7 @@
     /* Video Title: Bold + Black in Light Mode, Skyblue/Lavender in Dark Mode, Preserves Spaces */
     #videoTitle {
       white-space: pre-wrap;
-      font-weight: 800 !important;
+      font-weight: 600 !important;
       color: #0f172a !important;
       background: none !important;
       -webkit-background-clip: border-box !important;
@@ -672,18 +672,18 @@
       --session-gap: 24px;
       --session-dot-size: 9px;
       --session-title-size: 15px;
-      --session-time-size: 13px;
-      --session-label-size: 12.5px;
+      --session-time-size: 12px;
+      --session-label-size: 11.5px;
       --session-title-weight: 800;
       --session-time-weight: 700;
-      --session-label-weight: 600;
+      --session-label-weight: 650;
       --session-dot-color: #ef4444;
 
       background: var(--glass-bg);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       border: 1px solid var(--glass-border);
-      border-radius: 22px;
+      border-radius: 15px;
       padding: var(--session-padding);
       box-shadow: var(--neo-shadow-out), var(--glass-inner);
       cursor: pointer;
@@ -782,7 +782,7 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       border: 1px solid var(--glass-border);
-      border-radius: 22px;
+      border-radius: 15px;
       padding: 22px 12px 18px 12px;
       flex: 1 1 0px;
       min-width: 0;
@@ -977,13 +977,13 @@
 </div>
 
 <!-- Greeting -->
-<div class="flex flex-col items-center mb-5">
+<div class="flex flex-col items-center mb-8">
   <img src="feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
   <h2 class="radhe-title text-l sm:text-xl md:text-2xl mt-[-1]">... !!&nbsp;&nbsp;&nbsp;राधे&nbsp;&nbsp;राधे&nbsp;&nbsp;&nbsp;!! ...</h2>
 </div>
 
 <!-- Player -->
-<div class="w-full max-w-4xl mx-auto px-4 mb-5">
+<div class="w-full max-w-4xl mx-auto px-4 mb-8">
   <div id="playerCard" class="bg-white dark:bg-gray-800 transition duration-300 ease-in-out overflow-visible" style="aspect-ratio: 16/9;">
     <div id="playerWrapper" class="relative group w-full h-full">
       <div class="toast" id="toast">Toast</div>
@@ -1061,7 +1061,7 @@
 
 
 <!-- ---------- Progress Cards & Water Wave Circle (FIXED) ---------- -->
- <div class="card-row w-full max-w-4xl mx-auto px-4">
+ <div class="card-row w-full max-w-4xl mx-auto mb-6 px-4">
     <!-- Watched Card -->
     <div class="info-card">
       <div class="wave-circle" id="watchedWave"></div>    <!--   In Left card   -->
@@ -1099,10 +1099,11 @@
     </div>
   </div>
 <!--   ----------  End Progress Cards & Hourglass  ----------   -->
+  
 
 <!--   Current Session Card   -->
 <!--   Current Session Card   -->
-<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[20px]">
+<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[25px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
     JS expects the elements with IDs:
