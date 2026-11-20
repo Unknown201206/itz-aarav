@@ -5,7 +5,8 @@
 <html lang="en">  
 <head>  
   <meta charset="UTF-8" />  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#2F0909" />  
   <title>AaRAv OffiCiaL</title>  
   <script src="https://cdn.tailwindcss.com"></script>  
@@ -1148,7 +1149,7 @@
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/shaka-player.compiled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.2/dist/shaka-player.compiled.js"></script>
 
 <script>
 const params = new URLSearchParams(window.location.search);
@@ -1160,14 +1161,16 @@ const noSkip = params.has("noskip");     //   ✅ Force to Not Skip the Video
 const skipSeconds = parseFloat(params.get("skip"));        //   ✅ Flexible Skip Timing for " skipSeconds " using Videos
 const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;      //   ✅ Default = 13.8s Skip
 
-// 🪄 UNIVERSAL PARAMETERS FOR COOKIES, COOKIE URLS & HEADERS
-const customCookie = params.get("cookie");       // e.g. ?cookie=__hdnea__=xyz123...
-const cookieUrl = params.get("cookieUrl");       // e.g. ?cookieUrl=https://api.com/token.json
-const customReferer = params.get("referer") || "https://www.jiotv.com/";
-const customUserAgent = params.get("ua") || "plaYtv/7.1.5 (Linux;Android 13) ExoPlayerLib/2.11.6";
+//   🪄  UNIVERSAL  PARAMETERS  FOR  COOKIES  ,,   APIs  ,,   HEADERS  &  PROXY
+const customCookie = params.get("cookie") || "";
+const cookieUrl = params.get("cookieUrl") || "";
+const apiUrl = params.get("api") || "";                   //   e.g.   ?api=https://.../sports.json&id=STEN3
+const channelId = params.get("id") || "";
+const customReferer = params.get("referer") || "";
+const customUserAgent = params.get("ua") || "";
+const useProxy = params.get("proxy") === "1" || params.has("proxy");
 
-
-//   👇🏻  CLEARKEY DRM PARSER (Supports 1 Key or 2-3+ Keys via &key= or &keys= or &drm=)
+//   👇🏻  CLEARKEY  DRM  PARSER   (  Supports  &key=  ,   &keys=  ,   &drm=   With  Comma  ,,   Pipe  ,,   Or  Space  Separation  )
 const rawKeyParams = [
   ...params.getAll("key"),
   ...params.getAll("keys"),
@@ -1175,18 +1178,20 @@ const rawKeyParams = [
 ].filter(Boolean);
 
 const clearKeysMap = {};
-rawKeyParams.forEach(paramStr => {
-  //   Splits  Multiple  Keys  Separated  By  Comma  ( , )  ,,   Pipe  ( | )  ,,   or  Space
-  decodeURIComponent(paramStr).split(/[,|\s]+/).forEach(pair => {
-    const parts = pair.trim().split(':');
-    if (parts.length === 2 && parts[0] && parts[1]) {
-      const cleanKid = parts[0].replace(/-/g, '').trim().toLowerCase();
-      const cleanKey = parts[1].replace(/-/g, '').trim().toLowerCase();
-      clearKeysMap[cleanKid] = cleanKey;
-    }
+function addClearKeys(input) {
+  if (!input) return;
+  const list = Array.isArray(input) ? input : decodeURIComponent(String(input)).split(/[,|\s]+/);
+  list.forEach(pair => {
+    if (!pair || typeof pair !== "string") return;
+    const idx = pair.indexOf(":");
+    if (idx === -1) return;
+    const cleanKid = pair.slice(0, idx).replace(/-/g, "").trim().toLowerCase();
+    const cleanKey = pair.slice(idx + 1).replace(/-/g, "").trim().toLowerCase();
+    if (cleanKid && cleanKey) clearKeysMap[cleanKid] = cleanKey;
   });
-});
-const hasDrmKeys = Object.keys(clearKeysMap).length > 0;
+}
+rawKeyParams.forEach(addClearKeys);
+let hasDrmKeys = Object.keys(clearKeysMap).length > 0;
 
 
 function formatTime(seconds) {
@@ -1249,10 +1254,10 @@ if (provider === "youtube" && safeVideoID) {
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`);
     
-} else if ((provider === "hls" || provider === "drm" || provider === "dash" || hasDrmKeys) && safeVideo) {
+} else if ((provider === "hls" || provider === "drm" || provider === "dash" || hasDrmKeys || apiUrl) && (safeVideo || apiUrl)) {
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
-      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline crossorigin="anonymous"></video>
+      <video id="player" class="rounded w-full h-full" style="background:black;" playsinline preload="metadata"></video>
       <div id="gestureLeft" class="gesture-zone"></div>
       <div id="gestureRight" class="gesture-zone"></div>
     </div>`);
@@ -1386,8 +1391,8 @@ function initAllPlayerEvents(plyrInstance) {
 
   player.on('ready', () => {
     try {
-      //   👇🏻  GUARANTEED UI INJECTION  :  Runs Exactly When Plyr Has Finished Building !!
-      //   This Permanently Fixes The UI Flashing Bug On Brand New Links By Waiting For The Network .
+      //   👇🏻  GUARANTEED  UI  INJECTION  :  Runs  Exactly  When  Plyr  Has  Finished  Building  !!
+      //   This  Permanently  Fixes  The  UI  Flashing  Bug  On  Brand  New  Links  By  Waiting  For  The  Network  .
       initGestures(provider);
       setupMenuOverlayBlock();
       injectCustomSeekControls();
@@ -1395,7 +1400,7 @@ function initAllPlayerEvents(plyrInstance) {
       disableGesturesWhileMenusOpen();
 
       //   Fixed  Skip  Logic   :   Wait  For  moov  Metadata   (  readyState >= 1  )   &  Seek  Once
-      if (!noSkip && player.provider !== 'youtube' && player.media) {
+      if (!noSkip && !isDrmOrDash && player.provider !== 'youtube' && player.media && isFinite(player.media.duration)) {
         let initialSkipDone = false;
         const applyInitialSkip = () => {
           if (initialSkipDone || player.media.readyState < 1) return;
@@ -1411,18 +1416,18 @@ function initAllPlayerEvents(plyrInstance) {
         }
       }
       
-      //   Original YouTube Quality Hack
+      //   Original  YouTube  Quality  Hack
       if (player.provider === 'youtube' && player.embed?.setPlaybackQuality) {
         player.embed.setPlaybackQuality('hd1440');
       }
     } catch (err) {
-      console.warn("Player ready init error", err);
+      console.warn("Player  Ready  Init  Error", err);
     }
   });
 
-  //   👇🏻  EXECUTION ORDER FIX  :  YouTube Initializes So Fast That It Calls These Functions 
-  //   Milliseconds Before The Browser Finishes Reading The Bottom of Your HTML File . 
-  //   We Push This To The End of The Event Loop To Guarantee The Trackers Are Defined in Memory .
+  //   👇🏻  EXECUTION  ORDER  FIX  :  YouTube  Initializes  So  Fast  That  it  Calls  These  Functions 
+  //   Milliseconds  Before  The  Browser  Finishes  Reading  The  Bottom  of  Your  HTML  File  . 
+  //   We  Push  This  To  The  End  of  The  Event  Loop  To  Guarantee  The  Trackers  Are  Defined  in  Memory  .
   setTimeout(() => {
     if (typeof window.startSessionTracking === 'function') window.startSessionTracking();
     if (typeof window.startProgressTracking === 'function') window.startProgressTracking();
@@ -1431,12 +1436,18 @@ function initAllPlayerEvents(plyrInstance) {
 
 
 //   Check Provider & Initialize
-const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys);
+//   Helper  :  Readable  Shaka  Error  Logger  For  Your  Debug  Box
+function logShakaDetail(err, label = "SHAKA ERROR") {
+  if (!err) return;
+  const code = err.code || "Unknown";
+  const category = err.category || "?";
+  const data = Array.isArray(err.data) ? err.data.map(d => (typeof d === "object" ? JSON.stringify(d) : d)).join(" | ") : "";
+  console.error(`[${label}] Code: ${code} (Cat: ${category}) ${data ? "-> " + data : err.message || ""}`);
+}
+
+const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys || Boolean(apiUrl));
 
 if (isDrmOrDash && videoElement) {
-  const sourceUrl = rawVideoUrl;
-  console.log(`[DRM INIT] Loading MPD stream with ${Object.keys(clearKeysMap).length} key(s)`);
-
   function forceHideLoader() {
     const loader = document.getElementById('playerLoader');
     if (loader) loader.classList.remove('show');
@@ -1444,77 +1455,137 @@ if (isDrmOrDash && videoElement) {
 
   shaka.polyfill.installAll();
 
-
   if (shaka.Player.isBrowserSupported()) {
     const shakaPlayer = new shaka.Player();
     window.shakaPlayer = shakaPlayer;
 
-    const shakaConfig = {
-      streaming: {
-        bufferingGoal: 30,
-        rebufferingGoal: 2,
-        bufferBehind: 30
-      }
-    };
-
-    if (hasDrmKeys) {
-      shakaConfig.drm = { clearKeys: clearKeysMap };
-      console.log("[DRM KEYS]", JSON.stringify(clearKeysMap));
-    }
-
-    shakaPlayer.configure(shakaConfig);
-
     shakaPlayer.addEventListener('error', (event) => {
-      if (typeof logShakaDetail === 'function') logShakaDetail(event.detail, "SHAKA EVENT");
+      logShakaDetail(event.detail, "SHAKA EVENT");
       forceHideLoader();
     });
 
-    // 🪄 EXACT LOGIC COPIED FROM YOUR WORKING SITE
     (async () => {
       try {
         await shakaPlayer.attach(videoElement);
 
-        let resolvedCookie = customCookie || "";
-        if (!resolvedCookie && cookieUrl) {
-          try {
-            const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
-            const json = await resp.json();
-            resolvedCookie = json.cookie || json.token || "";
-          } catch (e) {
-            console.warn("[COOKIE URL FETCH FAIL]", e);
+        let finalStreamUrl = rawVideoUrl;
+        let resolvedCookie = customCookie;
+        let resolvedReferer = customReferer;
+        let resolvedUA = customUserAgent;
+
+        //   1.  Optional   :   Fetch  Channel  Config  Dynamically  From  Any  JSON  API   (  ?api=...&id=...  )
+        if (apiUrl) {
+          console.log(`[  API  ]   Fetching  Channel  Config  From   ${apiUrl}`);
+          const res = await fetch(decodeURIComponent(apiUrl), { cache: "no-store" });
+          if (!res.ok) throw new Error(`API HTTP ${res.status}`);
+          const data = await res.json();
+          const channels = Array.isArray(data) ? data : (data.channels || data.data || data.items || []);
+          const ch = channelId
+            ? channels.find(c => c && (c.id === channelId || c.name === channelId))
+            : channels[0];
+
+          if (!ch) throw new Error(`Channel "${channelId}" not found in API`);
+          if (!finalStreamUrl) finalStreamUrl = ch.stream_url || ch.url || ch.mpd || "";
+          if (!resolvedCookie) resolvedCookie = ch.cookie || ch.token || "";
+          if (!resolvedReferer && ch.referer) resolvedReferer = ch.referer;
+          if (!resolvedUA && ch.user_agent) resolvedUA = ch.user_agent;
+          if (!hasDrmKeys && (ch.key || ch.drmKeys || ch.keys)) {
+            addClearKeys(ch.key || ch.drmKeys || ch.keys);
+            hasDrmKeys = Object.keys(clearKeysMap).length > 0;
+          }
+          if (ch.name && !title) {
+            document.getElementById("videoTitle").textContent = ch.name;
+            document.title = ch.name;
           }
         }
 
-        if (resolvedCookie) {
-          shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
-            request.headers = request.headers || {};
-            request.headers["Cookie"] = resolvedCookie;
-
-            const isMedia =
-              type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
-              type === shaka.net.NetworkingEngine.RequestType.SEGMENT;
-
-            if (isMedia && request.uris && request.uris[0] && !request.uris[0].includes("__hdnea__")) {
-              const token = resolvedCookie.startsWith("__hdnea=") ? resolvedCookie.slice(10) : resolvedCookie;
-              request.uris[0] += (request.uris[0].includes("?") ? "&" : "?") + "__hdnea=" + token;
+        //   2.  Optional   :   Fetch  Standalone   Cookie / Token  URL   (  ?cookieUrl=...  )
+        if (!resolvedCookie && cookieUrl) {
+          try {
+            const resp = await fetch(decodeURIComponent(cookieUrl), { cache: "no-store" });
+            const text = await resp.text();
+            try {
+              const json = JSON.parse(text);
+              resolvedCookie = json.cookie || json.token || json.hdnea || "";
+            } catch {
+              resolvedCookie = text.trim();
             }
-          });
+          } catch (e) {
+            console.warn("[  COOKIE  URL  FAIL  ]", e);
+          }
         }
 
-        await shakaPlayer.load(sourceUrl);
-        console.log("[DRM] Manifest loaded successfully!");
+        if (!finalStreamUrl) throw new Error("No  Stream  URL  Provided  or  Found  in  API  .");
+
+        //   3.  Configure  Shaka  For  Live  +  Low - Latency  +  ClearKey  DRM
+        const shakaConfig = {
+          manifest: { defaultPresentationDelay: 5 },
+          streaming: {
+            lowLatencyMode: true,
+            bufferingGoal: 10,
+            rebufferingGoal: 2,
+            bufferBehind: 30,
+            safeSeekOffset: 5
+          }
+        };
+
+        if (hasDrmKeys) {
+          shakaConfig.drm = { clearKeys: clearKeysMap };
+          console.log(`[  DRM  ]   Configured   ${Object.keys(clearKeysMap).length}   ClearKey(s)`);
+        }
+
+        shakaPlayer.configure(shakaConfig);
+
+        //   4.  Universal  Request  Filter   (  Akamai / JioTV  Query  Token  +  Optional  Vercel  Header  Proxy  )
+        shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
+          const isMedia =
+            type === shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+            type === shaka.net.NetworkingEngine.RequestType.SEGMENT;
+
+          if (!isMedia || !request.uris || !request.uris[0]) return;
+
+          let targetUrl = request.uris[0];
+
+          //   A )  Properly  Append   Akamai / JioTV __hdnea__   Token  To  Query  String   (  Fixes  .slice(10)  Bug  )
+          if (resolvedCookie) {
+            const cleanCookie = resolvedCookie.trim();
+            const isAkamaiToken =
+              cleanCookie.includes("__hdnea") ||
+              (cleanCookie.includes("exp=") && cleanCookie.includes("hmac="));
+
+            if (isAkamaiToken && !targetUrl.includes("__hdnea")) {
+              const sep = targetUrl.includes("?") ? "&" : "?";
+              if (cleanCookie.startsWith("__hdnea__=") || cleanCookie.startsWith("__hdnea=")) {
+                targetUrl += sep + cleanCookie;
+              } else {
+                targetUrl += sep + "__hdnea__=" + cleanCookie;
+              }
+            }
+          }
+
+          //   B )  If  " &proxy=1 "  is  Set  ,,   Route  Through  " /api/proxy "  So  Real  Cookie / Referer / UA  Headers  Are  Sent  Server - Side
+          if (useProxy && !targetUrl.startsWith(window.location.origin + "/api/proxy")) {
+            const proxyParams = new URLSearchParams({ url: targetUrl });
+            if (resolvedCookie) proxyParams.set("cookie", resolvedCookie);
+            if (resolvedReferer) proxyParams.set("referer", resolvedReferer);
+            if (resolvedUA) proxyParams.set("ua", resolvedUA);
+            targetUrl = `/api/proxy?${proxyParams.toString()}`;
+          }
+
+          request.uris[0] = targetUrl;
+        });
+
+        console.log(`[  DRM  ]   Loading   :   ${finalStreamUrl.substring(0, 80)}   🕊️  .......`);
+        await shakaPlayer.load(finalStreamUrl);
+        console.log("[  DRM  ]   Manifest  Loaded  Successfully  !!");
 
         // Smart Autoplay
         videoElement.muted = false;
         videoElement.play().catch(() => {
           videoElement.muted = true;
           videoElement.play().then(() => {
-            showToast("Tap Anywhere To Unmute 🪄 .....");
-            const unmuteHandler = () => {
-              videoElement.muted = false;
-              document.removeEventListener('touchstart', unmuteHandler);
-              document.removeEventListener('click', unmuteHandler);
-            };
+            showToast("Tap  Anywhere  To  Unmute   🪄  .......");
+            const unmuteHandler = () => { videoElement.muted = false; };
             document.addEventListener('touchstart', unmuteHandler, { once: true });
             document.addEventListener('click', unmuteHandler, { once: true });
           }).catch(() => {});
@@ -1524,7 +1595,7 @@ if (isDrmOrDash && videoElement) {
         const tracks = shakaPlayer.getVariantTracks();
         const availableQualities = tracks.map(t => t.height).filter(Boolean);
         const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
-        uniqueQualities.unshift(0); // 0 = Auto
+        uniqueQualities.unshift(0);
 
         plyrConfig.quality = {
           default: 0,
@@ -1545,10 +1616,8 @@ if (isDrmOrDash && videoElement) {
         };
 
       } catch (err) {
-        if (typeof logShakaDetail === 'function') logShakaDetail(err, "DRM LOAD FAIL");
-        else console.error(err);
+        logShakaDetail(err, "DRM  LOAD  FAIL");
       } finally {
-        // 🪄 GUARANTEES UI BUILDS AND BLACK SCREEN DISAPPEARS
         forceHideLoader();
         if (!window.player) {
           const plyrInstance = new Plyr('#player', plyrConfig);
@@ -1558,7 +1627,7 @@ if (isDrmOrDash && videoElement) {
     })();
 
   } else {
-    console.error("[DRM ERROR] Browser does not support EME.");
+    console.error("[  DRM  ERROR  ]   Browser  Doesn't  Support  EME  .");
     forceHideLoader();
   }
 }
