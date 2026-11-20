@@ -1399,6 +1399,7 @@ function initAllPlayerEvents(plyrInstance) {
       injectCustomSeekControls();
       injectInlineVolumeSlider();
       disableGesturesWhileMenusOpen();
+      setupShakaLiveSeekBar();
 
       //   Fixed  Skip  Logic   :   Wait  For  moov  Metadata   (  readyState >= 1  )   &  Seek  Once
       if (!noSkip && !isDrmOrDash && player.provider !== 'youtube' && player.media && isFinite(player.media.duration)) {
@@ -1959,11 +1960,67 @@ function initGestures(type) {
   }
 }
 
+
 function seekBy(seconds) {
   const c = player.media?.currentTime || 0;
+  if (window.shakaPlayer && window.shakaPlayer.isLive()) {
+    const range = window.shakaPlayer.seekRange();
+    if (range && range.end > range.start) {
+      player.media.currentTime = Math.max(range.start + 1, Math.min(range.end - 1, c + seconds));
+      return;
+    }
+  }
   player.media.currentTime = Math.max(0, Math.min(player.media.duration || Infinity, c + seconds));
 }
+
+window._isDraggingShakaSeek = false;
+function setupShakaLiveSeekBar() {
+  const progressWrap = document.querySelector('.plyr__progress');
+  const seekInput = progressWrap?.querySelector('input[data-plyr="seek"]');
+  if (!progressWrap || !seekInput || progressWrap._shakaLiveBound) return;
+  progressWrap._shakaLiveBound = true;
+
+  const isShakaLive = () => Boolean(window.shakaPlayer && window.shakaPlayer.isLive());
+
+  const startDrag = () => { if (isShakaLive()) window._isDraggingShakaSeek = true; };
+  const endDrag = () => { window._isDraggingShakaSeek = false; };
+  seekInput.addEventListener('pointerdown', startDrag, true);
+  seekInput.addEventListener('touchstart', startDrag, true);
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('touchend', endDrag);
+
+  
+  function handleShakaSeek(e) {
+    if (!isShakaLive() || e.target !== seekInput) return;
+    e.stopPropagation();
+
+    const range = window.shakaPlayer.seekRange();
+    const windowLen = range ? (range.end - range.start) : 0;
+    if (windowLen <= 1) return;
+
+    const pct = Math.max(0, Math.min(100, parseFloat(seekInput.value) || 0));
+    seekInput.style.setProperty('--value', `${pct}%`);
+
+    const targetTime = range.start + (pct / 100) * windowLen;
+    if (window.player?.media) {
+      window.player.media.currentTime = Math.max(range.start + 1, Math.min(range.end - 1, targetTime));
+      const behind = Math.max(0, range.end - targetTime);
+      showToast(behind <= 6 ? '🟢   LIVE'  :  `⏪  -${formatTime(behind)}`);
+    }
+  }
+
+  //   Capture  On  Parent  Wrapper  So  it  Runs  Before  Plyr's  Own  Infinity  Seek  Handler
+  progressWrap.addEventListener('input', handleShakaSeek, true);
+  progressWrap.addEventListener('change', (e) => {
+    handleShakaSeek(e);
+    window._isDraggingShakaSeek = false;
+  }, true);
+}
+
+
 function vibrate() { if (navigator.vibrate) navigator.vibrate(15); }
+
+  
 function showToast(text) {
   const toast = document.getElementById('toast');
   toast.textContent = text;
@@ -1971,6 +2028,7 @@ function showToast(text) {
   clearTimeout(showToast._timeout);
   showToast._timeout = setTimeout(() => toast.classList.remove('show'), 900);
 }
+
 
 function setupMenuOverlayBlock() {
   const plyrRoot = document.querySelector('.plyr');
@@ -1990,7 +2048,8 @@ function setupMenuOverlayBlock() {
   });
 }
 
-/*   <---  ✅  Close Other Menus When Settings Opens  --->   */
+
+/*   <---   ✅  Close  Other  Menus  When  Settings  Opens  --->   */
 function closeCustomMenusWhenSettingsOpens() {
   const plyrRoot = document.querySelector('.plyr');
   if (!plyrRoot) return;
@@ -2007,10 +2066,11 @@ function closeCustomMenusWhenSettingsOpens() {
   }).observe(plyrRoot, { attributes: true, attributeFilter: ['class'] });
 }
 
-/*   <---  Close Other Menus When New One Opens  --->   */
-//   ===   REPLACE THE EXISTING  closeAllMenus  WITH THIS   ===
+
+//   <---   Close  Other  Menus  When  New  One  Opens   --->
+//   <===   REPLACE  THE  EXISTING  closeAllMenus  WITH  THIS   ===>
 function closeAllMenus(exceptId) {
-  //   Hide Our Custom Menus  ( Except The One We Want To Keep Open )
+  //   Hide  Our  Custom  Menus   (  Except  The  One  We  Want  To  Keep  Open  )
   const menus = ['seekIntervalMenu', 'inlineVolumeSlider'];
   menus.forEach(id => {
     if (id !== exceptId) {
@@ -2019,28 +2079,30 @@ function closeAllMenus(exceptId) {
     }
   });
 
-  //   If We Should Close Plyr's  Settings / Menu  UI ,  Do It Thoroughly
+  //   If  We  Should  Close  Plyr's  Settings / Menu  UI  ,,   Do  it  Thoroughly
   const plyrRoot = document.querySelector('.plyr');
     if (exceptId !== 'plyr-settings' && plyrRoot) {
-      //   If Plyr's Settings Menu is Open ,  Simulate a Toggle Click To Close It Properly
+      //   If  Plyr's  Settings  Menu  is  Open  ,,   Simulate  a  Toggle  Click  To  Close  it  Properly
       if (plyrRoot.classList.contains('plyr--menu-open')) {
         const settingsBtn = plyrRoot.querySelector('[data-plyr="settings"]');
         if (settingsBtn) settingsBtn.click();
       }
     }
   }
+  
 
   function instantHideMenu(menu) {
     if (!menu) return;
-    //   Disable Transition To Prevent Closing Animation
+    //   Disable  Transition  To  Prevent  Closing  Animation
     menu.style.transition = 'none';
     menu.classList.remove('menu-show');
     menu.style.display = 'none';
-    //   Restore Transition For Next Open
+    //   Restore  Transition  For  Next  Open
     setTimeout(() => {
       menu.style.transition = '';
     }, 1);
   }
+  
 
   function setIntervalBtnHighlight(isHighlighted) {
     const intervalBtn = document.querySelector('#customSeekControls .plyr__control--seek:nth-child(2)');
@@ -2051,6 +2113,7 @@ function closeAllMenus(exceptId) {
       intervalBtn.style.background = 'rgba(30,30,30,0.5)';      //   Default Color For Button
     }
   }
+  
   
   function disableGesturesWhileMenusOpen() {
     const gestureLeft = document.getElementById('gestureLeft');
@@ -2783,23 +2846,42 @@ window.startSessionTracking = function() {
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
 
+    //   🚀  SHAKA  LIVE  DVR  SLIDER  SYNC
+    const isShakaLive = Boolean(window.shakaPlayer && window.shakaPlayer.isLive());
+    if (isShakaLive && !window._isDraggingShakaSeek) {
+        const range = window.shakaPlayer.seekRange();
+        const seekInput = document.querySelector('.plyr__progress input[data-plyr="seek"]');
+        if (seekInput && range && (range.end - range.start) > 1) {
+            const pct = Math.max(0, Math.min(100, ((cur - range.start) / (range.end - range.start)) * 100));
+            requestAnimationFrame(() => {
+                if (window._isDraggingShakaSeek) return;
+                seekInput.value = pct;
+                seekInput.style.setProperty('--value', `${pct}%`);
+            });
+        }
+    }
+
     //   🚀  THE  NATIVE  " - 59:54 "  OVERRIDE  FIX
     //   Plyr  Natively  Calculates  Remaining  Time  INTERNALLY  &  Drifts  Wildly  When  The  Tab  Sleeps  .
     //   We  Use  Our  Pure   API  Math  To  Forcefully  Overwrite  The  Broken  Numbers  On  The  Screen  !!
     const curEl = document.querySelector('.plyr__time--current');
     if (curEl) {
-        const isRemaining = curEl.textContent.includes('-');
-        if (isRemaining) {
-            const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
-            curEl.textContent = '-' + formatTime(Math.floor(remainingSecs));
+        if (isShakaLive) {
+            curEl.textContent = ytDrift <= 8 ? 'LIVE' : '-' + formatTime(Math.floor(ytDrift));
         } else {
-            curEl.textContent = formatTime(Math.floor(cur));
+            const isRemaining = curEl.textContent.includes('-');
+            if (isRemaining) {
+                const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
+                curEl.textContent = '-' + formatTime(Math.floor(remainingSecs));
+            } else {
+                curEl.textContent = formatTime(Math.floor(cur));
+            }
         }
     }
 
     const durEl = document.querySelector('.plyr__time--duration');
     if (durEl) {
-        durEl.textContent = formatTime(Math.floor(dur));
+        durEl.textContent = isShakaLive ? 'LIVE' : formatTime(Math.floor(dur));
     }
   }
 
