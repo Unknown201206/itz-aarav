@@ -1579,19 +1579,7 @@ if (isDrmOrDash && videoElement) {
         await shakaPlayer.load(finalStreamUrl);
         console.log("[  DRM  ]   Manifest  Loaded  Successfully  !!");
 
-        // Smart Autoplay
-        videoElement.muted = false;
-        videoElement.play().catch(() => {
-          videoElement.muted = true;
-          videoElement.play().then(() => {
-            showToast("Tap  Anywhere  To  Unmute   🪄  .......");
-            const unmuteHandler = () => { videoElement.muted = false; };
-            document.addEventListener('touchstart', unmuteHandler, { once: true });
-            document.addEventListener('click', unmuteHandler, { once: true });
-          }).catch(() => {});
-        });
-
-        // Populate Plyr Quality Menu from DASH tracks
+        //   Populate  Plyr  Quality  Menu  From  DASH  tracks
         const tracks = shakaPlayer.getVariantTracks();
         const availableQualities = tracks.map(t => t.height).filter(Boolean);
         const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
@@ -1619,10 +1607,22 @@ if (isDrmOrDash && videoElement) {
         logShakaDetail(err, "DRM  LOAD  FAIL");
       } finally {
         forceHideLoader();
-        if (!window.player) {
+        if (!(window.player instanceof Plyr)) {
           const plyrInstance = new Plyr('#player', plyrConfig);
           initAllPlayerEvents(plyrInstance);
         }
+
+        //   Smart  Autoplay  After  Plyr  Wraps  The  " <video> "  Element
+        videoElement.muted = false;
+        videoElement.play().catch(() => {
+          videoElement.muted = true;
+          videoElement.play().then(() => {
+            showToast("Tap  Anywhere  To  Unmute   🪄  .......");
+            const unmuteHandler = () => { videoElement.muted = false; };
+            document.addEventListener('touchstart', unmuteHandler, { once: true });
+            document.addEventListener('click', unmuteHandler, { once: true });
+          }).catch(() => {});
+        });
       }
     })();
 
@@ -1677,12 +1677,12 @@ else if (provider === "hls" && videoElement) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
         
-        //   Track Network Responses To See Exactly What  Succeeds / Fails  ( REMOVED LOGS FOR UI PERFORMANCE )
+        //   Track  Network  Responses  To  See  Exactly  What  Succeeds / Fails   (  REMOVED  LOGS  FOR  UI  PERFORMANCE  )
         xhr.addEventListener('loadend', () => {
           if (xhr.status >= 400 || xhr.status === 0) {
-            //   console.error(`[NETWORK FAIL] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+            //   console.error(`[  NETWORK  FAIL  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 60)}   🕊️  .......`);
           } else if (url.includes('.m3u8')) {
-            //   console.log(`[MANIFEST SUCCESS] Status: ${xhr.status} | URL: ${url.substring(0, 60)}...`);
+            //   console.log(`[  MANIFEST  SUCCESS  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 60)}   🕊️  .......`);
           }
         });
       }
@@ -1700,12 +1700,12 @@ else if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
-      //   console.error(`[HLS ERROR] Type: ${data.type} | Details: ${data.details}`);      <--   ( Silenced )
+      //   console.error(`[  HLS  ERROR  ]   Type   :   ${data.type}   |   Details   :   ${data.details}`);      <--   (  Silenced  )
       if (data.fatal) {
-        forceHideLoader();       //   Safely Hide Loader Using The Global Function
+        forceHideLoader();         //   Safely  Hide  Loader  Using  The  Global  Function
         
-        //   Ensure UI Builds Even On Failure So It Doesn't Spin Forever
-        if (!window.player) {
+        //   Ensure  UI  Builds  Even  On  Failure  So  it  Doesn't  Spin  Forever
+        if (!(window.player instanceof Plyr)) {
           const plyrInstance = new Plyr('#player', plyrConfig);
           initAllPlayerEvents(plyrInstance);
         }
@@ -2587,13 +2587,16 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   ✅  NEW  HLS  FIX  :  Ensure Custom  m3u8  Live Streams Are Also Tracked Properly !!
+    //   ✅  NEW  HLS  FIX  :  Ensure  Custom  m3u8  Live  Streams  Are  Also  Tracked  Properly  !!
     if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
+        isYtLive = true;
+    }
+    if (window.shakaPlayer && window.shakaPlayer.isLive()) {
         isYtLive = true;
     }
 
     if (isYtLive) {
-        //   👇🏻  TRUE  REAL - TIME  TRACKER  ( Immune To Tab Sleeping )
+        //   👇🏻  TRUE  REAL - TIME  TRACKER   (  Immune  To  Tab  Sleeping  )
         if (typeof window.ytMaxSeen === 'undefined') {
             window.ytMaxSeen = cur;
             window.lastRealTime = Date.now();
@@ -2603,20 +2606,24 @@ window.startSessionTracking = function() {
         const elapsedSecs = (nowTime - window.lastRealTime) / 1000;
         window.lastRealTime = nowTime;
         
-        //   🚀  TAB  SLEEP  FIX  :  If  Elapsed Time  is  " < 30s "  ,,  It's a Normal Frame Update . 
-        //   If It's Huge  ( E.g. -  5 Minutes ) ,,  The Tab Was Asleep .  We Ignore Massive Sleep Jumps !!
+        //   🚀  TAB  SLEEP  FIX  :  If  Elapsed  Time  is  " < 30s "  ,,   It's  a  Normal  Frame  Update  . 
+        //   If  it's  Huge   (  E.g. -  5 Minutes  )  ,,   The  Tab  Was  Asleep  .   We  Ignore  Massive  Sleep  Jumps  !!
         if (elapsedSecs > 0 && elapsedSecs < 30) {
-            window.ytMaxSeen += elapsedSecs;              //   The Universe Moves Forward Natively !!
+            window.ytMaxSeen += elapsedSecs;              //   The  Universe  Moves  Forward  Natively  !!
         }
 
-        //   If User Seeks Forward  ( Or  Auto - Snaps  To  Live ) ,,  Instantly Snap The  Tracker  To Reality
+        //   If  User  Seeks  Forward   (  Or  Auto - Snaps  To  Live  )  ,,   Instantly  Snap  The  Tracker  To  Reality
         if (cur > window.ytMaxSeen) {
             window.ytMaxSeen = cur;
         }
 
-        //   HLS  Exception  :  HLS  Provides a Mathematically Pure Native  Live Edge
+        //   HLS  Exception  :  HLS  Provides  a  Mathematically  Pure  Native  Live  Edge
         if (window.hls && window.hls.liveSyncPosition) {
             window.ytMaxSeen = window.hls.liveSyncPosition;
+        }
+        if (window.shakaPlayer && window.shakaPlayer.isLive()) {
+            const range = window.shakaPlayer.seekRange();
+            if (range && range.end > 0) window.ytMaxSeen = range.end;
         }
 
         dur = window.ytMaxSeen;
@@ -2783,24 +2790,24 @@ window.startSessionTracking = function() {
         return;
     }
     
-    //   Mathematical Drift Check Specifically For PW HLS Streams
+    //   Mathematical  Drift  Check  Specifically  For  PW  HLS  Streams
     const secondsBehind = liveEdgeTime - cur;
     
-    //   12 - Second  Tolerance For PW Streams
+    //   12 - Second  Tolerance  For  PW  Streams
     if (secondsBehind <= 12) { 
         liveIndicatorText.textContent = "LIVE";
         liveIndicatorText.style.color = "#16a34a";
         liveIndicatorDot.style.backgroundColor = "#16a34a";
         liveIndicatorDot.style.boxShadow = "0 0 5px #16a34a";
     } else {
-        liveIndicatorText.textContent = "NOT LIVE";
+        liveIndicatorText.textContent = "NOT  LIVE";
         liveIndicatorText.style.color = "#ef4444";
         liveIndicatorDot.style.backgroundColor = "#ef4444";
         liveIndicatorDot.style.boxShadow = "0 0 5px #ef4444";
     }
   }
 
-  //   Make The Live Indicator Button Clickable To Forcefully Jump Back To Live Edge
+  //   Make  The  Live  Indicator  Button  Clickable  To  Forcefully  Jump  Back  To  Live  Edge
   const liveInd = document.getElementById('liveIndicator');
   if (liveInd) {
       liveInd.addEventListener('click', () => {
@@ -2808,11 +2815,14 @@ window.startSessionTracking = function() {
           
           const isYtLive = (window.player.provider === 'youtube' && window.player.embed && typeof window.player.embed.getVideoData === 'function' && window.player.embed.getVideoData().isLive);
 
-          if (window.hls && window.hls.liveSyncPosition) {
+          if (window.shakaPlayer && window.shakaPlayer.isLive()) {
+              const range = window.shakaPlayer.seekRange();
+              if (range && range.end > 0) window.player.currentTime = Math.max(range.start, range.end - 2);
+          } else if (window.hls && window.hls.liveSyncPosition) {
               window.player.currentTime = window.hls.liveSyncPosition;
           } else if (isYtLive && window.player.embed && window.player.embed.seekTo) {
-              //   👇🏻  YOUTUBE JUMP BYPASS  :  Seek Using Google's Legendary 999999999 Trick !!
-              //   By Seeking To an Impossibly High Number ,  Google's Engine Forcibly Caps It at The Exact True Live Edge .
+              //   👇🏻  YOUTUBE  JUMP  BYPASS  :  Seek  Using  Google's  Legendary  999999999  Trick  !!
+              //   By  Seeking  To  an  Impossibly  High  Number  ,,   Google's  Engine  Forcibly  Caps  it  at  The  Exact  True  Live  Edge  .
               window.player.embed.seekTo(999999999, true);
           } else if (window.player.duration && window.player.duration !== Infinity) {
               window.player.currentTime = window.player.duration;
@@ -2821,7 +2831,7 @@ window.startSessionTracking = function() {
   }
 
   
-  //   👇🏻  WRAP PROGRESS EVENTS TO WAIT FOR PLAYER INITIALIZATION
+  //   👇🏻  WRAP  PROGRESS  EVENTS  TO  WAIT  FOR  PLAYER  INITIALIZATION
   window.startProgressTracking = function() {
     setInitialUI();
     window.player.on('timeupdate', updateProgressFromPlayer);
@@ -2831,7 +2841,7 @@ window.startSessionTracking = function() {
     window.player.on('ended', updateProgressFromPlayer);
     setTimeout(updateProgressFromPlayer, 80);
 
-    // 👇🏻 PROGRESSIVE DOWNLOAD TRACKER : Prints buffer state to your debug box every 5 seconds
+    //   👇🏻  PROGRESSIVE  DOWNLOAD  TRACKER  :  Prints  Buffer  State  To  Your  Debug  Box  Every  5 - seconds
     setInterval(() => {
         if (!window.player || !window.player.media) return;
         const vid = window.player.media;
@@ -2839,16 +2849,16 @@ window.startSessionTracking = function() {
             const bufferedSeconds = vid.buffered.end(vid.buffered.length - 1);
             const percent = ((bufferedSeconds / vid.duration) * 100).toFixed(1);
             
-            // Only log if it's still downloading (less than 99.9%)
+            //   Only  Log  if  it's  Still  Downloading   (  Less  Than  99.9%  )
             if (percent < 99.9) {
-                console.log(`[NETWORK] Buffered: ${percent}% (${Math.floor(bufferedSeconds)}s of ${Math.floor(vid.duration)}s)`);
+                console.log(`[  NETWORK  ]   Buffered  :  ${percent}%  (${Math.floor(bufferedSeconds)}s  of  ${Math.floor(vid.duration)}s)`);
             }
         }
     }, 5000); 
 
     
-    //   👇🏻  EVENT SUPPRESSION FIX  :  Google's iframe  Frequently Blocks The  ' timeupdate '  Event On Live Streams .
-    //   If The Event Doesn't Fire ,  The  Omni - Scraper  Never Runs .  This Forces It To Run Every 1 Second .
+    //   👇🏻  EVENT  SUPPRESSION  FIX  :  Google's  iframe   Frequently  Blocks  The  " timeupdate "  Event  On  Live  Streams  .
+    //   If  The  Event  Doesn't  Fire  ,,   The  Omni - Scraper  Never  Runs  .   This  Forces  it  To  Run  Every  1 - Second  .
     setInterval(() => {
         if (window.player && !window.player.paused) {
             updateProgressFromPlayer();
