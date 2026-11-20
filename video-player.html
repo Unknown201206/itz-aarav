@@ -2629,13 +2629,13 @@ window.startSessionTracking = function() {
         dur = window.ytMaxSeen;
         ytDrift = Math.max(0, dur - cur);
 
-        //   🚀  AUTO - SNAP  CACHE BUSTER  ( Fixes The Random  17 - Hour  /  29 - Hour  Reload Bug )
+        //   🚀  AUTO - SNAP  CACHE  BUSTER   (  Fixes  The  Random  17 - Hour  /  29 - Hour  Reload  Bug  )
         if (typeof window.initialYtLiveSeekDone === 'undefined' && !player.paused && cur > 0) {
             window.initialYtLiveSeekDone = true;
             if (player.provider === 'youtube' && player.embed && typeof player.embed.seekTo === 'function') {
-                player.embed.seekTo(999999999, true);            //   Force  Google  Out of The  Cached DVR Window
-                window.ytMaxSeen = 0;                            //   Force  Tracker  To Reset On Next  Frame
-                console.log("🚀 [AUTO-SNAP] Forcing YouTube to True Live Edge to clear bad cache!");
+                player.embed.seekTo(999999999, true);            //   Force  Google  Out  of  The  Cached  DVR  Window
+                window.ytMaxSeen = 0;                            //   Force  Tracker  To  Reset  On  Next  Frame
+                console.log("🚀   [  AUTO - SNAP  ]   Forcing  YouTube  To  True  Live  Edge  To  Clear  Bad  Cache  !!");
             }
         }
     }
@@ -2643,7 +2643,7 @@ window.startSessionTracking = function() {
     //   👇🏻  DEBUG  OUPUT  ( Throttled To Print Only Once Every  4 Seconds )
     const now = Date.now();
     if (now - lastDebugLogTime > 4000) {
-        console.log(`[STATE] isLive:${isYtLive} | ytDrift:${ytDrift.toFixed(1)} | dur:${dur.toFixed(1)} | cur:${cur.toFixed(1)} | paused:${player.paused}`);
+        console.log(`[  STATE  ]  isLive  :  ${isYtLive}   |   ytDrift  :  ${ytDrift.toFixed(1)}   |   Dur  :  ${dur.toFixed(1)}   |   Cur  :  ${cur.toFixed(1)}   |   Paused  :  ${player.paused}`);
         lastDebugLogTime = now;
     }
 
@@ -2651,15 +2651,15 @@ window.startSessionTracking = function() {
     if (dur > 0 || isYtLive || cur > 0) {
         if (!isMetadataLoaded) isMetadataLoaded = true;
         
-        //   Kickstart The  Watched Clock  If Paused State is False
+        //   Kickstart  The  Watched  Clock  if  Paused  State  is  False
         if (!player.paused && !isBufferingOrSeeking && !sessionTimer) {
             startSessionTimer();
             setSessionDotState("playing");
         }
         
-        //   Format The Actual Total Duration Perfectly  ( Now Immune to  1 - Hour  Offsets )
+        //   Format  The  Actual  Total  Duration  Perfectly   (  Now  Immune  To  1 - Hour  Offsets  )
         if (isYtLive) {
-            if (dur > 0) {
+            if (dur > 0 && dur < 86400 * 30) {
                 document.getElementById("sessionTotalDuration").textContent = formatSessionTime(Math.floor(dur * 1000));
             } else {
                 document.getElementById("sessionTotalDuration").textContent = "Live Stream";
@@ -2671,7 +2671,7 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   Early Exit Trap  :  Only Quit If It's a  VOD  & Truly Has  0 Duration
+    //   Early  Exit  Trap  :  Only  Quit  if  it's  a  VOD  &  Truly  Has  0   Duration
     if (!isYtLive && (!dur || !isFinite(dur) || dur === 0)) {
         checkLiveDrift(cur, dur, isYtLive, ytDrift);
         return;
@@ -2683,7 +2683,7 @@ window.startSessionTracking = function() {
     let remPct = 100 - watchedPct;
 
     if (isYtLive) {
-        //   For  YouTube Live ,,  Show  100 / 0  Unless Scrubbed Back Significantly  ( > 15s )
+        //   For  YouTube  Live  ,,   Show  100 / 0  Unless  Scrubbed  Back  Significantly   (  > 15s  )
         if (ytDrift > 15) {
             leftFill.style.width = `${watchedPct.toFixed(2)}%`;
             rightFill.style.width = `${remPct.toFixed(2)}%`;
@@ -2696,7 +2696,7 @@ window.startSessionTracking = function() {
             rightPercentEl.textContent = '0%   Remaining';
         }
     } else {
-        //   Normal  VOD  Percentage Logic
+        //   Normal  VOD  Percentage  Logic
         if (cur === 0) {
             leftFill.style.width = '0%';
             rightFill.style.width = '100%';
@@ -2720,9 +2720,9 @@ window.startSessionTracking = function() {
     
     checkLiveDrift(cur, dur, isYtLive, ytDrift);
 
-    //   🚀  THE  NATIVE  - 59:54  OVERRIDE  FIX
-    //   Plyr Natively Calculates  Remaining Time  INTERNALLY  &  Drifts Wildly  When The  Tab Sleeps .
-    //   We Use Our Pure  API Math  To Forcefully Overwrite The Broken Numbers On The Screen !!
+    //   🚀  THE  NATIVE  " - 59:54 "  OVERRIDE  FIX
+    //   Plyr  Natively  Calculates  Remaining  Time  INTERNALLY  &  Drifts  Wildly  When  The  Tab  Sleeps  .
+    //   We  Use  Our  Pure   API  Math  To  Forcefully  Overwrite  The  Broken  Numbers  On  The  Screen  !!
     const curEl = document.querySelector('.plyr__time--current');
     if (curEl) {
         const isRemaining = curEl.textContent.includes('-');
@@ -2845,7 +2845,7 @@ window.startSessionTracking = function() {
     setInterval(() => {
         if (!window.player || !window.player.media) return;
         const vid = window.player.media;
-        if (vid.buffered.length > 0 && vid.duration > 0) {
+        if (vid.buffered.length > 0 && Number.isFinite(vid.duration) && vid.duration > 0) {
             const bufferedSeconds = vid.buffered.end(vid.buffered.length - 1);
             const percent = ((bufferedSeconds / vid.duration) * 100).toFixed(1);
             
