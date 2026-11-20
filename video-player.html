@@ -1300,7 +1300,8 @@ const plyrConfig = {
   //   " quality "  is  Placed  First  So  it  Appears  Above  " speed "
   settings: ['quality', 'speed', 'volume'],
   storage: { enabled: false },
-  toggleInvert: true,           
+  invertTime: false,
+  toggleInvert: false,
   speed: {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
@@ -1360,7 +1361,8 @@ function initAllPlayerEvents(plyrInstance) {
   }
 
 
-  //   Invert  Time  Toggle
+  //   Invert  Time  Toggle   (  Single  Source  of  Truth  —  No  Competing  Listeners  )
+  window._isTimeInverted = false;
   (function() {
     const root = document.querySelector('.plyr');
     if (!root) return;
@@ -1368,26 +1370,10 @@ function initAllPlayerEvents(plyrInstance) {
       const timeWrap = e.target.closest('.plyr__time');
       if (!timeWrap) return;
       e.stopPropagation();
-      if (player && typeof player.toggleInvertTime === 'function') {
-        player.toggleInvertTime();
-        return;
+      window._isTimeInverted = !window._isTimeInverted;
+      if (typeof window.updateProgressFromPlayer === 'function') {
+        window.updateProgressFromPlayer();
       }
-      if (!root._myInvertToggle) {
-        root._myInvertToggle = { enabled: false };
-        player.on('timeupdate', () => {
-          const curEl = root.querySelector('.plyr__time--current');
-          if (!curEl) return;
-          if (root._myInvertToggle.enabled) {
-            const dur = Math.floor(player.duration || 0);
-            const cur = Math.floor(player.currentTime || 0);
-            const remaining = Math.max(0, dur - cur);
-            curEl.textContent = '-' + formatTime(remaining);
-          } else {
-            curEl.textContent = formatTime(Math.floor(player.currentTime || 0));
-          }
-        });
-      }
-      root._myInvertToggle.enabled = !root._myInvertToggle.enabled;
     }, true);
   })();
 
@@ -2878,10 +2864,13 @@ window.startSessionTracking = function() {
     const curEl = document.querySelector('.plyr__time--current');
     if (curEl) {
         if (isShakaLive) {
-            curEl.textContent = ytDrift <= 8 ? 'LIVE' : '-' + formatTime(Math.floor(ytDrift));
+            if (window._isTimeInverted) {
+                curEl.textContent = '-' + formatTime(Math.floor(ytDrift));
+            } else {
+                curEl.textContent = ytDrift <= 8 ? 'LIVE' : '-' + formatTime(Math.floor(ytDrift));
+            }
         } else {
-            const isRemaining = curEl.textContent.includes('-');
-            if (isRemaining) {
+            if (window._isTimeInverted) {
                 const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
                 curEl.textContent = '-' + formatTime(Math.floor(remainingSecs));
             } else {
@@ -2988,11 +2977,15 @@ window.startSessionTracking = function() {
 
   
   //   👇🏻  WRAP  PROGRESS  EVENTS  TO  WAIT  FOR  PLAYER  INITIALIZATION
+  window.updateProgressFromPlayer = updateProgressFromPlayer;
+
   window.startProgressTracking = function() {
     setInitialUI();
     window.player.on('timeupdate', updateProgressFromPlayer);
     window.player.on('play', updateProgressFromPlayer);
+    window.player.on('seeking', updateProgressFromPlayer);
     window.player.on('seeked', updateProgressFromPlayer);
+    window.player.on('durationchange', updateProgressFromPlayer);
     window.player.on('loadedmetadata', updateProgressFromPlayer);
     window.player.on('ended', updateProgressFromPlayer);
     setTimeout(updateProgressFromPlayer, 80);
