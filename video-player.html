@@ -584,7 +584,7 @@
     /* Video Title: Bold + Black in Light Mode, Skyblue/Lavender in Dark Mode, Preserves Spaces */
     #videoTitle {
       white-space: pre-wrap;
-      font-weight: 600 !important;
+      font-weight: 700 !important;
       color: #0f172a !important;
       background: none !important;
       -webkit-background-clip: border-box !important;
@@ -961,11 +961,11 @@
     <div class="px-4 pb-1 flex justify-between items-center mt-4 mb-4">
       
       <!-- Back btn styled like your neon buttons -->
-      <button onclick="history.back()" class="neon-download w-20 py-1 rounded-full text-black text-xs font-semibold">⬅ Back</button>
+      <button onclick="history.back()" class="neon-download w-20 rounded-full text-black text-xs font-semibold">⬅ Back</button>
       
       <!-- Theme toggle styled same -->
       <button onclick="toggleDarkMode(event)" id="themeToggle"
-        class="neon-download w-20 py-1 rounded-full text-black text-xs font-semibold">🌙</button>
+        class="neon-download w-20 rounded-full text-black text-xs font-semibold">🌙</button>
   
     </div>
   
@@ -977,13 +977,13 @@
 </div>
 
 <!-- Greeting -->
-<div class="flex flex-col items-center mb-8">
+<div class="flex flex-col items-center mb-10">
   <img src="feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
   <h2 class="radhe-title text-l sm:text-xl md:text-2xl mt-[-1]">... !!&nbsp;&nbsp;&nbsp;राधे&nbsp;&nbsp;राधे&nbsp;&nbsp;&nbsp;!! ...</h2>
 </div>
 
 <!-- Player -->
-<div class="w-full max-w-4xl mx-auto px-4 mb-8">
+<div class="w-full max-w-4xl mx-auto px-4 mb-10">
   <div id="playerCard" class="bg-white dark:bg-gray-800 transition duration-300 ease-in-out overflow-visible" style="aspect-ratio: 16/9;">
     <div id="playerWrapper" class="relative group w-full h-full">
       <div class="toast" id="toast">Toast</div>
@@ -1061,7 +1061,7 @@
 
 
 <!-- ---------- Progress Cards & Water Wave Circle (FIXED) ---------- -->
- <div class="card-row w-full max-w-4xl mx-auto mb-6 px-4">
+ <div class="card-row w-full max-w-4xl mx-auto mb-8 px-4">
     <!-- Watched Card -->
     <div class="info-card">
       <div class="wave-circle" id="watchedWave"></div>    <!--   In Left card   -->
@@ -1103,7 +1103,7 @@
 
 <!--   Current Session Card   -->
 <!--   Current Session Card   -->
-<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[25px]">
+<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[20px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
     JS expects the elements with IDs:
@@ -2685,7 +2685,7 @@ function exitBuffering() {
 
 //   👇🏻  WRAP ALL SESSION EVENTS IN A FUNCTION SO THEY WAIT FOR PLAYER TO INITIALIZE
 window.startSessionTracking = function() {
-  console.log("[DEBUG] Session Tracking successfully booted.");
+  console.log("[  DEBUG  ]   Session  Tracking  Successfully  Booted  .");
   
   //   Listen For  Metadata  -->  Show Total Duration  & Allow Timer To Start When Appropriate
   window.player.media?.addEventListener('loadedmetadata', () => {
