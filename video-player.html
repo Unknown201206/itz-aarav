@@ -952,26 +952,30 @@
     bg-[url('https://aarav-official-study-hub.vercel.app/player-bg-mobile1.jpg')]
     sm:bg-[url('https://aarav-official-study-hub.vercel.app/player-bg-desktop.jpg')]
     bg-cover bg-center text-black dark:text-black text-sm sm:text-base md:text-lg min-h-screen flex flex-col">  -->
-  
-<!-- Header -->
+
+
+<!--   Header   -->
 <header class="pt-3 mb-2 text-center">
    
     <h1 class="text-lg sm:text-xl md:text-2xl font-bold">itz&nbsp;&nbsp;Aarav</h1>
 
     <div class="px-4 pb-1 flex justify-between items-center mt-4 mb-4">
       
-      <!-- Back btn styled like your neon buttons -->
-      <button onclick="history.back()" class="neon-download w-20 h-7 rounded-full text-black text-xs font-semibold">⬅ Back</button>
+      <!--   Back  Btn  Styled  Like  Your  Neon  Buttons   -->
+      <button onclick="history.back()" class="neon-download w-20 h-7 rounded-full text-black text-xs font-semibold inline-flex items-center justify-center gap-2 leading-none">
+        <span>⬅</span>
+        <span>Back</span>
+      </button>
       
-      <!-- Theme toggle styled same -->
+      <!--   Theme  Toggle  Styled  Same   -->
       <button onclick="toggleDarkMode(event)" id="themeToggle"
-        class="neon-download w-20 h-7 rounded-full text-black text-xs font-semibold">🌙</button>
+        class="neon-download w-20 h-7 rounded-full text-black text-xs font-semibold inline-flex items-center justify-center leading-none">🌙</button>
   
     </div>
-  
 </header>
 
-<!-- Video title -->
+
+<!--   Video  Title   -->
 <div class="text-center px-4 mb-3">
   <h2 id="videoTitle" class="bg-gradient-to-r from-purple-600 to-blue-700 bg-clip-text text-transparent text-xs sm:text-sm md:text-base font-semibold text-center"></h2>
 </div>
@@ -1092,17 +1096,16 @@
         
         <div id="liveIndicator" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
           <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
-          <span id="liveIndicatorText">LIVE</span>
+          <span id="liveIndicatorText">ʟɪᴠᴇ</span>
         </div>
 
       </div>
     </div>
   </div>
-<!--   ----------  End Progress Cards & Hourglass  ----------   -->
+<!--   ----------   End  Progress  Cards  &  Hourglass   ----------   -->
   
 
-<!--   Current Session Card   -->
-<!--   Current Session Card   -->
+<!--   Current  Session  Card   -->
 <div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mt-1.7 mb-[25px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
@@ -1113,32 +1116,32 @@
     Keep those IDs exactly as they are.
   -->
 
-  <!-- card surface -->
+  <!--   Card  Surface   -->
   <div class="session-card">
-    <!-- header: dot + title -->
-    <!-- removed explicit Tailwind h-3 w-3 to avoid display quirks; size controlled by CSS below -->
+    <!--   Header  :  Dot  +  Title   -->
+    <!--   Removed  Explicit  Tailwind  h-3 w-3  To  Avoid  Display  Quirks  ;   Size  Controlled  By  CSS  Below   -->
     <div class="session-header">
       <span id="sessionStatusDot" class="session-dot" aria-hidden="true"></span>
-      <span class="session-title">Current Session</span>
+      <span class="session-title">Current&nbsp;&nbsp;Session</span>
     </div>
 
-    <!-- main row: two columns (left = current watched, right = total duration) -->
+    <!--   Main  Row  :  Two  Columns   (  Left  =  Current  Watched  ,,   Right  =  Total  Duration  )   -->
     <div class="session-row" role="group" aria-label="Session times">
       <div class="session-col">
-        <!-- exact ID used by JS -->
+        <!--   Exact  ID  Used  By  JS   -->
         <div id="sessionCurrentTime" class="session-time">00:00:00:00</div>
-        <div class="session-label">Watched Video</div>
+        <div class="session-label">Watched&nbsp;&nbsp;Video</div>
       </div>
 
       <div class="session-col">
-        <!-- exact ID used by JS -->
+        <!--   Exact  ID  Used  By  JS   -->
         <div id="sessionTotalDuration" class="session-time">00:00:00:00</div>
-        <div class="session-label">Total Duration</div>
+        <div class="session-label">Total&nbsp;&nbsp;Duration</div>
       </div>
     </div>
   </div>
 </div>
-<!-- End Current Session Card -->
+<!--   End  Current  Session  Card   -->
   
 
 <!--   DEBUG  BOX   (  Silent  By  Default  —  Add  "&debug=1"  To  URL  To  Show  )   -->
