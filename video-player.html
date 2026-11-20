@@ -7,8 +7,22 @@
   <meta charset="UTF-8" />  
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#2F0909" />  
-  <title>AaRAv OffiCiaL</title>  
+  <meta id="theme-color-meta" name="theme-color" content="#f4f6fc" />
+  <title>itz  Aarav</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  
+  <script>
+    (function () {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.documentElement.classList.add('dark');
+        const m = document.getElementById('theme-color-meta');
+        if (m) m.content = '#111827';
+      }
+    })();
+  </script>
+  
   <script src="https://cdn.tailwindcss.com"></script>  
   <script>tailwind.config = { darkMode: 'class' }</script>  
   
@@ -461,81 +475,234 @@
       pointer-events: auto;
     }
 
-    /*   🔥 Current Session Card Style   */
-    /* ---------- Session card (replace previous block) ---------- */
-    /*   🔥 Current Session Card Style (REPLACEMENT)
-         This is a small, variable-driven style set for the session card.
-         Edit the variables at the top to change sizes, gaps, weights, colours.
-         Two breakpoints are provided: mobile (default) and desktop (>=768px).
-    */
+    /* =========================================================================
+       VIEW TRANSITIONS API — DISABLE DEFAULT CROSSFADE FOR SHARP CIRCLE RIPPLE
+       ========================================================================= */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+    ::view-transition-old(root) { z-index: 1; }
+    ::view-transition-new(root) { z-index: 9999; }
 
-    /* ---------- primary variables (edit these only) ---------- */
+    /* =========================================================================
+       THEME VARIABLES — LIGHT MODE (MAX WHITE NEOMORPHISM + WHITE GLASS)
+       ========================================================================= */
+    :root {
+      --bg-base: #f4f6fc;
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+
+      /* White Glassmorphism */
+      --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(246, 248, 255, 0.68));
+      --glass-border: rgba(255, 255, 255, 0.96);
+      --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 1), inset 0 -1px 2px rgba(148, 163, 184, 0.16);
+
+      /* Max White Neomorphism + Purple/Blue Tints */
+      --neo-surface: #f7f9fe;
+      --neo-shadow-out: 10px 10px 24px rgba(99, 102, 241, 0.13), -10px -10px 24px rgba(255, 255, 255, 0.98);
+      --neo-shadow-hover: 14px 16px 32px rgba(109, 40, 217, 0.22), -10px -10px 24px rgba(255, 255, 255, 1);
+      --neo-shadow-sm: 5px 5px 12px rgba(100, 116, 139, 0.15), -5px -5px 12px rgba(255, 255, 255, 0.98);
+      --neo-shadow-in: inset 4px 4px 8px rgba(148, 163, 184, 0.28), inset -4px -4px 8px rgba(255, 255, 255, 0.98);
+
+      --wave-bg: #ffffff;
+      --live-pill-bg: rgba(255, 255, 255, 0.85);
+      --live-pill-border: rgba(124, 58, 237, 0.18);
+
+      /* Multi-Color Spreaded Ambient Orbs */
+      --orb-1: rgba(139, 92, 246, 0.34);   /* Purple */
+      --orb-2: rgba(59, 130, 246, 0.28);   /* Royal Blue */
+      --orb-3: rgba(236, 72, 153, 0.24);   /* Rose Pink */
+      --orb-4: rgba(6, 182, 212, 0.22);    /* Cyan */
+      --orb-5: rgba(15, 23, 42, 0.06);     /* Subtle Slate */
+    }
+
+    /* =========================================================================
+       DARK MODE (OBSIDIAN BLACK GLASS + BLACK & PURPLE NEOMORPHISM)
+       ========================================================================= */
+    html.dark {
+      --bg-base: #060911;
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+
+      /* Black Glassmorphism */
+      --glass-bg: linear-gradient(145deg, rgba(16, 21, 36, 0.78), rgba(9, 12, 22, 0.88));
+      --glass-border: rgba(167, 139, 250, 0.16);
+      --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.10), inset 0 -1px 2px rgba(0, 0, 0, 0.7);
+
+      /* Obsidian + Purple Neomorphism */
+      --neo-surface: #0b0f1b;
+      --neo-shadow-out: 10px 10px 28px rgba(0, 0, 0, 0.85), -6px -6px 18px rgba(124, 58, 237, 0.13);
+      --neo-shadow-hover: 14px 18px 36px rgba(0, 0, 0, 0.92), -6px -6px 22px rgba(139, 92, 246, 0.24);
+      --neo-shadow-sm: 5px 5px 14px rgba(0, 0, 0, 0.78), -4px -4px 10px rgba(139, 92, 246, 0.10);
+      --neo-shadow-in: inset 4px 4px 10px rgba(0, 0, 0, 0.85), inset -3px -3px 8px rgba(255, 255, 255, 0.05);
+
+      --wave-bg: #0c111e;
+      --live-pill-bg: rgba(15, 20, 35, 0.85);
+      --live-pill-border: rgba(167, 139, 250, 0.25);
+
+      /* Multi-Color Spreaded Ambient Orbs (Dark Glow) */
+      --orb-1: rgba(124, 58, 237, 0.38);
+      --orb-2: rgba(37, 99, 235, 0.30);
+      --orb-3: rgba(219, 39, 119, 0.24);
+      --orb-4: rgba(6, 182, 212, 0.22);
+      --orb-5: rgba(255, 255, 255, 0.05);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-base) !important;
+      color: var(--text-primary) !important;
+      overflow-x: hidden;
+    }
+
+    /* =========================================================================
+       MULTI-COLOR SPREADED MESH BACKGROUND
+       ========================================================================= */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(88px);
+      opacity: 0.95;
+      will-change: transform;
+      animation: floatOrb 20s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 460px; height: 460px; background: radial-gradient(circle, var(--orb-1), transparent 70%); top: -130px; left: -110px; }
+    .orb-2 { width: 500px; height: 500px; background: radial-gradient(circle, var(--orb-2), transparent 70%); bottom: -150px; right: -110px; animation-delay: -5s; }
+    .orb-3 { width: 360px; height: 360px; background: radial-gradient(circle, var(--orb-3), transparent 70%); top: 24%; right: 4%; animation-delay: -9s; }
+    .orb-4 { width: 340px; height: 340px; background: radial-gradient(circle, var(--orb-4), transparent 70%); bottom: 16%; left: 4%; animation-delay: -13s; }
+    .orb-5 { width: 300px; height: 300px; background: radial-gradient(circle, var(--orb-5), transparent 70%); top: 48%; left: 50%; transform: translate(-50%, -50%); }
+
+    @keyframes floatOrb {
+      0%   { transform: translate(0, 0) scale(1); }
+      50%  { transform: translate(28px, -22px) scale(1.07); }
+      100% { transform: translate(-20px, 24px) scale(0.96); }
+    }
+
+    /* =========================================================================
+       BRAND HEADINGS & NEOMORPHIC GLASS PILL BUTTONS
+       ========================================================================= */
+    header h1,
+    .text-center h2.font-bold {
+      background: linear-gradient(100deg, #111827 0%, #6d28d9 52%, #2563eb 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+    html.dark header h1,
+    html.dark .text-center h2.font-bold {
+      background: linear-gradient(100deg, #ffffff 0%, #c084fc 52%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    html.dark #videoTitle {
+      background: linear-gradient(90deg, #c4b5fd 0%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .neon-download {
+      background: var(--glass-bg) !important;
+      backdrop-filter: blur(18px) saturate(160%);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      border: 1.5px solid var(--glass-border) !important;
+      box-shadow: var(--neo-shadow-sm), var(--glass-inner) !important;
+      color: var(--text-primary) !important;
+      padding: 6px 14px !important;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.25s ease, color 0.2s ease !important;
+    }
+    .neon-download:hover {
+      transform: translateY(-2.5px);
+      background: linear-gradient(110deg, #111827 0%, #6d28d9 52%, #2563eb 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(167, 139, 250, 0.55) !important;
+      box-shadow: 0 8px 22px rgba(109, 40, 217, 0.38) !important;
+    }
+    .neon-download:active {
+      transform: translateY(0) scale(0.97);
+      box-shadow: var(--neo-shadow-in) !important;
+    }
+
+    /* =========================================================================
+       PLAYER CARD — GLASS + NEOMORPHIC BEZEL FRAME
+       ========================================================================= */
+    #playerCard {
+      aspect-ratio: auto !important;
+      padding: 7px;
+      border-radius: 22px !important;
+      background: var(--glass-bg) !important;
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+      border: 1.5px solid var(--glass-border);
+      box-shadow: var(--neo-shadow-out), var(--glass-inner);
+      transform: translateY(-2px);
+      transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.5s ease;
+    }
+    #playerCard:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--neo-shadow-hover), var(--glass-inner);
+    }
+    #playerWrapper,
+    #playerWrapper .plyr,
+    #playerWrapper .plyr__video-wrapper,
+    #playerLoader {
+      border-radius: 15px;
+    }
+    #playerWrapper .plyr__video-wrapper {
+      overflow: hidden;
+    }
+
+    /* =========================================================================
+       CURRENT SESSION CARD (GLASS + NEOMORPHISM)
+       ========================================================================= */
     .session-card {
-      /* layout / spacing variables (easy single-place tuning) */
-      --session-padding: 17px 13px 18px 13px;        /* top/bottom and left/right */
-      --session-gap: 26px;                     /* gap between header and row / columns */
-      --session-dot-size: 8px;                 /* diameter of the status dot */
-      --session-title-size: 14.5px;            /* "Current Session" */
-      --session-time-size: 12px;               /* time numbers (00:00:00) */
-      --session-label-size: 13px;              /* Watched Video / Total Duration */
-
-      /* font-weight variables */
-      --session-title-weight: 700;
+      --session-padding: 18px 16px 20px 16px;
+      --session-gap: 24px;
+      --session-dot-size: 9px;
+      --session-title-size: 15px;
+      --session-time-size: 13px;
+      --session-label-size: 12.5px;
+      --session-title-weight: 800;
       --session-time-weight: 700;
-      --session-label-weight: 650;
+      --session-label-weight: 600;
+      --session-dot-color: #ef4444;
 
-      /* colours (change to match theme) */
-      --session-foreground: #0f1724;       /* main text */
-      --session-muted: #222;               /* label / muted text */
-      --session-time: #2e2e2e;             /* time text */
-      --session-dot-color: #ef4444;        /* red dot (playing) */
-
-      /* visual (background) - keep similar floating glass style as before */
-      background: linear-gradient(
-        to bottom right,
-        rgba(255, 255, 255, 0.62),
-        rgba(173, 216, 230, 0.38)
-      );
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-
-      border-radius: 8px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 22px;
       padding: var(--session-padding);
-      box-sizing: border-box;
-
-      /*   ✅ Floating look  */
-      box-shadow: 0 5px 7px rgba(0, 0, 0, 0.1);
-      /*  ( Currently Disabled ) transform: translateY(-3px);  */
+      box-shadow: var(--neo-shadow-out), var(--glass-inner);
       cursor: pointer;
-
-      /* ✅ Smooth + spring animation */
-      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
-      box-shadow 0.6s ease;
-      
+      transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.45s ease;
     }
-
-     /* ✅ On hover: slight lift */
-     .session-card:hover {
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
-        transform: translateY(-6px);
-     }
-
-    /* ✅ On click: lift more (spring will animate it back) */
+    .session-card:hover {
+      box-shadow: var(--neo-shadow-hover), var(--glass-inner);
+      transform: translateY(-5px);
+    }
     .session-card:active {
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
-      transform: translateY(-9px) scale(1.02);
+      box-shadow: var(--neo-shadow-in);
+      transform: translateY(-2px) scale(0.99);
     }
-    
-    /* ---------- header (dot + title) ---------- */
     .session-header {
       display: flex;
       align-items: center;
-      gap: 15px; /* space between dot and title */
+      gap: 12px;
       margin-bottom: var(--session-gap);
     }
-
-    /* status dot */
     .session-dot {
       width: var(--session-dot-size);
       height: var(--session-dot-size);
@@ -543,102 +710,61 @@
       background-color: var(--session-dot-color);
       flex-shrink: 0;
       display: inline-block;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
     }
-
-    /* title */
     .session-title {
       font-size: var(--session-title-size);
       font-weight: var(--session-title-weight);
-      color: var(--session-foreground);
+      color: var(--text-primary);
       line-height: 1;
-      /* if you want uppercase: text-transform: uppercase; */
     }
-
-    /* ---------- main row (two columns) ---------- */
     .session-row {
       display: flex;
-      gap: var(--session-gap);
+      gap: 14px;
       justify-content: space-between;
-      align-items: center;
+      align-items: stretch;
       width: 100%;
     }
-        
-    /* each column (centered on mobile) */
     .session-col {
       flex: 1 1 0;
       display: flex;
       flex-direction: column;
-      align-items: center;   /* mobile: centered */
-      gap: 2px;
-    }    
-
-    /* time number */
+      align-items: center;
+      gap: 4px;
+      padding: 12px 10px;
+      border-radius: 16px;
+      background: var(--neo-surface);
+      box-shadow: var(--neo-shadow-in);
+      border: 1px solid var(--glass-border);
+    }
     .session-time {
       font-size: var(--session-time-size);
       font-weight: var(--session-time-weight);
-      color: var(--session-time);
-      letter-spacing: 0.2px;
-      margin-bottom: -3px;
+      color: var(--text-primary);
+      letter-spacing: 0.4px;
+      font-variant-numeric: tabular-nums;
     }
-
-    /* label under the time */
     .session-label {
       font-size: var(--session-label-size);
       font-weight: var(--session-label-weight);
-      color: var(--session-muted);
-      opacity: 0.95;
+      color: var(--text-muted);
       letter-spacing: 0.2px;
     }
-
-    /* ========== Desktop overrides ========== 
-       Tweak these values to change desktop sizes/gap independently.
-       To change behaviour for larger screens, edit the variables below.
-    */
     @media (min-width: 520px) {
       .session-card {
-        --session-padding: 20px 22px 22px 22px;
-        --session-gap: 30px;
-        --session-dot-size: 9px;
-        --session-title-size: 19px;
-        --session-time-size: 15.4px;
-        --session-label-size: 15.8px;
-
-        /* font-weight variables */
-        --session-title-weight: 800;
-        --session-time-weight: 700;
-        --session-label-weight: 700;
+        --session-padding: 22px 24px 24px 24px;
+        --session-gap: 24px;
+        --session-dot-size: 10px;
+        --session-title-size: 18px;
+        --session-time-size: 16px;
+        --session-label-size: 14px;
       }
-    
-      /* on desktop, align text to left inside each column for a horizontal layout */
-      .session-col {
-        align-items: center;
-        gap: 2px !important;            /* desktop gap between time and label */
-      }
-
-      .session-time {
-        margin-bottom: -6px;
-      }
+      .session-col { padding: 14px 16px; }
     }
 
-    /* ========== Utility small tweak if you prefer left side times on desktop too ==========
-       (Uncomment if you want the times centered on desktop as well)
-    */
-    /*
-    @media (min-width: 768px) {
-      .session-col { align-items: flex-start; }
-    }
-    */
-
-    /* ---------- Progress Cards & Water Wave Circle (NEW) ---------- */
-    /* sensible global box-sizing so % widths behave predictably */
-    
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-    
+    /* =========================================================================
+       PROGRESS CARDS & WATER WAVE CIRCLE (GLASS + NEOMORPHISM)
+       ========================================================================= */
     .card-row {
       display: flex;
       flex-direction: row;
@@ -648,240 +774,157 @@
       flex-wrap: wrap;
       width: 100%;
       max-width: 100%;
-      margin-left: auto;
-      margin-right: auto;
-      margin-top: 0px;
-      margin-bottom: 25px !important;
-      box-sizing: border-box;
+      margin: 0 auto 25px auto !important;
     }
-
     .info-card {
-      background: linear-gradient(
-        to bottom right,
-        rgba(255, 255, 255, 0.62),
-        rgba(173, 216, 230, 0.38)
-      );
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 10px;
-      padding: 25px 10px 16px 10px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 22px;
+      padding: 22px 12px 18px 12px;
       flex: 1 1 0px;
-      min-width: 0;                         /*   Allows Cards to Shrink on Small Screens  */
-      max-width: 230px;                     /*   Adjust as Needed  */
+      min-width: 0;
+      max-width: 240px;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-  
-    /*   ✅ Floating look  */
-      box-shadow: 0 5px 7px rgba(0, 0, 0, 0.1);
-      /*  ( Currently Disabled ) transform: translateY(-0.1px);  */
+      box-shadow: var(--neo-shadow-out), var(--glass-inner);
       cursor: pointer;
-
-    /*   ✅ Smooth + spring animation  */
-      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
-      box-shadow 0.6s ease;
+      transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.45s ease;
     }
-    /*   ✅ On hover: slight lift  */
     .info-card:hover {
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--neo-shadow-hover), var(--glass-inner);
       transform: translateY(-5px);
     }
-
-    /*   ✅ On click: lift more (spring will animate it back)  */
     .info-card:active {
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
-      transform: translateY(-9px) scale(1.02);
+      box-shadow: var(--neo-shadow-in);
+      transform: translateY(-2px) scale(0.99);
     }
-
     .info-desc {
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: #222;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: var(--text-primary);
       margin: 0;
     }
-
     .progress-track {
       width: 92%;
-      margin: 15px auto 7px auto;
-      height: 7.5px;
-      background: #f1f6fa;
-      border-radius: 4px;
+      margin: 14px auto 8px auto;
+      height: 8.5px;
+      background: var(--neo-surface);
+      border-radius: 999px;
       overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important;
-      transform: translateY(-2px);
+      box-shadow: var(--neo-shadow-in) !important;
+      border: 1px solid var(--glass-border);
+      transform: none;
       cursor: pointer;
     }
-
     .progress-fill {
       height: 100%;
-      width: 0%;                               /*   Set dynamically by JS  */
-      border-radius: 4px;
-      background: linear-gradient(90deg, #9c0892, #2d0a5e);
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #7c3aed, #2563eb);
       transition: width 180ms linear;
     }
     .progress-fill.remaining {
-      background: linear-gradient(90deg,#700987,#874609);
+      background: linear-gradient(90deg, #9333ea, #ec4899);
     }
-
     .percent-text {
       font-size: 0.8rem;
-      color: #222;
-      font-weight: 600;
+      color: var(--text-secondary);
+      font-weight: 700;
       margin: 0;
-      white-space: pre-wrap;                    /*   Preserves White-Spaces and Still Allows Wrapping if Needed  (Can Also Use "  '0%\u00A0\u00A0Watched';  " in JS)  */
+      white-space: pre-wrap;
     }
-
-    /* Preserve spaces exactly as inserted (keeps your original &nbsp; and regular spaces) */
-
     .wave-circle {
-      width: 60px;
-      height: 60px;                             /*   Smaller Circle than Before Which i Created on Different Page  */
-      margin: 0 auto 15px;                      /*   <-- Center on Mobile: auto left/right, keep bottom gap  */
-      border-radius: 50%;                       /*   Make it Circular   */
-      overflow: hidden;                         /*   Clip Waves inside  */
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 14px;
+      border-radius: 50%;
+      overflow: hidden;
       position: relative;
-      background: #fff;                         /*   Base Background    */
+      background: var(--wave-bg);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5);    /*   Same as icon-gradient  */
-      transform: translateY(-2px);
+      box-shadow: var(--neo-shadow-sm);
+      border: 1.5px solid var(--glass-border);
     }
-    .wave-circle svg {
-      width: 100%; height: 100%;
-      display: block;
-    }
+    .wave-circle svg { width: 100%; height: 100%; display: block; }
+    .wave-circle svg circle[fill="#fff"] { fill: var(--wave-bg); transition: fill 0.3s ease; }
 
-    /*   ====== FIX : Make the Right-hand Content fill the Card (so % widths Compute Correctly) ======  */
-    /*   Place this Just AFTER Your .wave-circle Rules and BEFORE the @media(...) Block  */
+    #liveIndicator {
+      background: var(--live-pill-bg) !important;
+      border: 1px solid var(--live-pill-border) !important;
+      box-shadow: var(--neo-shadow-sm);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 999px !important;
+      margin-top: 10px !important;
+    }
 
     .info-content {
-      width: 100%;                     /*   KEY: force the content container to fill the card  */
-      box-sizing: border-box;          /*   Ensure paddings don't change percentage math  */
+      width: 100%;
       display: flex;
       flex-direction: column;
-      align-items: center;             /*   Preserve mobile centering inside the right-area  */
+      align-items: center;
       justify-content: center;
-      gap: 0;                        /*   Remove gap: we'll use explicit margins  */
-      padding: 0;                      /*   Keep layout predictable  */
+      gap: 0;
+      padding: 0;
       margin: 0;
     }
-
-    /*   😍🔥 Desktop: Water-Wave Cirle : left, Content : Right, Stacked Vertically */
     @media (min-width: 520px) {
       .card-row {
-        max-width: 56rem;                /*   Matches Tailwind max-w-4xl */
+        max-width: 56rem;
         gap: 18px;
         justify-content: space-between;
-        flex-wrap: nowrap;               /*   Two Cards Side-by-Side  */
+        flex-wrap: nowrap;
         padding: 0;
       }
-
       .info-card {
         flex-direction: row;
-        align-items: stretch;   /*   Keep the Container Stretched to allow Right Area to fill */
+        align-items: stretch;
         text-align: left;
-        padding: 20px 20px;
-        min-height: 84px;
-        box-sizing: border-box;
-        /*   ✅ Each Card Should fill approx half the Card-Row (2 Columns)  */
-        max-width: calc(50% - 13px);    /*   Two Cards per Row, Minus gap   */
+        padding: 20px;
+        min-height: 92px;
+        max-width: calc(50% - 10px);
       }
-
-      /*   🎊 Wave circle: keep horizontal spacing and also vertically center it in the row  */
       .info-card .wave-circle {
-        margin-bottom: 0;
-        margin-left: 20px;
-        margin-right: 20px;
-        flex: 0 0 60px;           /*   Keep the circle fixed size on desktop  */
-        width: 60px;
-        height: 60px;
-        align-self: center;       /*   <-- CRITICAL: vertically center the circle in the row  */
+        margin: 0 20px 0 12px;
+        flex: 0 0 62px;
+        width: 62px;
+        height: 62px;
+        align-self: center;
       }
-
-      /*   🔥 Ensure right-side area takes full remaining width and center its stack  */
       .info-card .info-content {
         flex: 1 1 auto;
         width: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: center;   /*   Center vertically inside Remaining Area      */
-        align-items: center;       /*   Center horizontally inside Remaining Area    */
-        gap: 0;                    /*   All items will Adjustable for their Own Gap as per need   */
+        justify-content: center;
+        align-items: center;
         min-width: 0;
       }
-
-       /*   --- Desktop spacing:  Can Adjust these values as i like  --- */
       .info-card .info-desc {
         font-size: 1rem;
-        color: #222;
+        color: var(--text-primary);
         font-weight: 800;
-        margin: 0 auto 19px;        /*   Title -> Progress gap on desktop   */
+        margin: 0 auto 14px;
       }
-
       .info-card .progress-track {
-        width: 80%;                 /*   Centered Relative to remaining area   */
-        margin: 0 auto 10px;        /*   Progress -> Percent gap   */
+        width: 84%;
+        margin: 0 auto 10px;
       }
-
       .info-card .percent-text {
-        font-size: 0.9rem;
-        color: #222;
+        font-size: 0.88rem;
+        color: var(--text-secondary);
         font-weight: 700;
         margin: 0;
       }
     }
-    
-    /*  .icon-gradient {
-      width: 40px; height: 40px;
-      border-radius: 5px !important;
-      margin-bottom: 15px;
-      background: linear-gradient(135deg, #8b5cf6 0%, #2563eb 100%);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      /* ✅ Floating look */
-      /*box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-      transform: translateY(-2px);
-      cursor: pointer;
-    }  */
 
-    /*   Ripple Animation For Theme Toggle   */
-    .theme-transition { 
-      position: relative;  /* keep if you use it elsewhere, not required for ripple */
-    }
-
-    .theme-ripple { 
-      overflow: hidden;    /* you can keep or remove, not critical once we use fixed */
-    }
-
-    .theme-ripple::before {
-      content: "";
-      position: fixed;  /* ✅ was absolute, use fixed so it floats above layout */
-      top: var(--ripple-y);
-      left: var(--ripple-x);
-      width: 0;
-      height: 0;
-      transform: translate(-50%, -50%);
-      background: currentColor;
-      border-radius: 50%;
-      pointer-events: none;
-      animation: ripple-expand 1.2s ease-out forwards;
-      z-index: 9999;  /* ✅ higher than header, but won’t push it */
-    }
-
-    @keyframes ripple-expand {
-      to {
-        width: 200vmax;
-        height: 200vmax;
-        opacity: 0;
-      }
-    }
-
+  
   </style>
 
   <!--   ✅  Firebase SDKs  ( App + Auth + Firestore )   -->
@@ -899,7 +942,17 @@
 </head>
 
 
-<body id="themeBody" class="theme-transition bg-white text-black dark:bg-gray-25 dark:text-black text-sm sm:text-base md:text-lg min-h-screen flex flex-col">
+<body id="themeBody" class="text-sm sm:text-base md:text-lg min-h-screen flex flex-col">
+
+<!--   Multi - Color  Spreaded  Mesh  Background   -->
+<div class="bg-mesh" aria-hidden="true">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="orb orb-4"></div>
+  <div class="orb orb-5"></div>
+</div>
+
 <!--  👆🏻 Can , Replace With this for another background :  
   <body id="themeBody"
   class="theme-transition
@@ -1898,20 +1951,114 @@ else if (provider === "hls" && videoElement) {
 }
 
 
-function toggleDarkMode(e) {
-  const body = document.getElementById('themeBody');
-  const x = e.clientX || window.innerWidth / 2;
-  const y = e.clientY || window.innerHeight / 2;
-  body.style.setProperty('--ripple-x', `${x}px`);
-  body.style.setProperty('--ripple-y', `${y}px`);
-  body.classList.add('theme-ripple');
-  setTimeout(() => {
-    document.documentElement.classList.toggle('dark');
-    document.getElementById('themeToggle').textContent =
-      document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
-  }, 200);
-  setTimeout(() => body.classList.remove('theme-ripple'), 700);
-}
+    //   ===================================================================================
+    //                🌙    THE  MODERN  VIEW  TRANSITIONS  API  ENGINE    🌙
+    //   ===================================================================================
+
+    function toggleDarkMode(e) {
+        const html = document.documentElement;
+        const isDark = html.classList.contains('dark');
+        const newTheme = isDark ? 'light' : 'dark';
+        
+        //   💾  Save  User's  Choice  Instantly  To  Memory
+        localStorage.setItem('theme', newTheme);
+        const btn = document.getElementById('themeToggle');
+
+        //   🛡️  Fallback  For  Older  Browsers  That  Don't  Support  View  Transitions
+        if (!document.startViewTransition) {
+            html.classList.toggle('dark');
+            if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            const themeMeta = document.getElementById('theme-color-meta');
+            if (themeMeta) themeMeta.content = newTheme === 'dark' ? '#111827' : '#f4f6fc';
+            return;
+        }
+
+        const rect = btn ? btn.getBoundingClientRect() : null;
+        let x, y;
+
+        //   🎯  1.  Get  Precise  Touch  Coordinates
+        if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number' && (e.clientX !== 0 || e.clientY !== 0)) {
+            // Strict Bounds Checker
+            if (rect && (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)) {
+                x = rect.left + (rect.width / 2);
+                y = rect.top + (rect.height / 2);
+            } else {
+                x = e.clientX;
+                y = e.clientY;
+            }
+            
+            //   🎊  2.  The  Flawless  Address  Bar  Fix   (  Using  100vh  Trick  )
+            if (window.matchMedia("(pointer: coarse)").matches) {
+                const div = document.createElement('div');
+                div.style.height = '100vh';
+                div.style.position = 'absolute';
+                div.style.visibility = 'hidden';
+                div.style.zIndex = '-9999';
+                document.body.appendChild(div);
+                
+                const addressBarHeight = Math.max(0, div.clientHeight - window.innerHeight);
+                document.body.removeChild(div);
+                
+                if (addressBarHeight > 0) {
+                    y = y + addressBarHeight;
+                }
+            }
+        } else if (rect) {
+            x = rect.left + (rect.width / 2);
+            y = rect.top + (rect.height / 2);
+        } else {
+            x = window.innerWidth / 2;
+            y = window.innerHeight / 2;
+        }
+
+        x = Math.round(x);
+        y = Math.round(y);
+
+        //   📐  3.  Math  Magic  :  Calculate  Distance  To  Furthest  Corner + Massive  400px  Safety  Buffer  !!
+        const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)) + 400;
+
+        //   📸  4.  Tell  The  Browser  To  Screenshot  The  Screen  &  Change  The  Theme  !!
+        const transition = document.startViewTransition(() => {
+            html.classList.toggle('dark');
+            if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        });
+
+        //   🌊  5.  Execute  OS  Glitch  Protections  &  Animate  !!
+        transition.ready.then(() => {
+            setTimeout(() => {
+                const themeMeta = document.getElementById('theme-color-meta');
+                if (themeMeta) {
+                    themeMeta.content = newTheme === 'dark' ? '#111827' : '#f4f6fc';
+                }
+            }, 50);
+
+            requestAnimationFrame(() => {
+                document.documentElement.animate(
+                    { 
+                        clipPath: [
+                            `circle(0px at ${x}px ${y}px)`,
+                            `circle(${endRadius}px at ${x}px ${y}px)`
+                        ]
+                    },
+                    {
+                        duration: 1400,                       
+                        easing: 'ease-out', 
+                        pseudoElement: '::view-transition-new(root)',
+                        fill: 'forwards' 
+                    }
+                );
+            });
+        });
+    }
+    
+    //   😇  Ensure  Button  Matches  Theme  On  Initial  Load
+    document.addEventListener("DOMContentLoaded", () => {
+        if (document.documentElement.classList.contains('dark')) {
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.textContent = '☀️';
+        }
+    });
+
 
 //   Gesture Logic NOT Affected
 function initGestures(type) {
