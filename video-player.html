@@ -2861,14 +2861,16 @@ window.startSessionTracking = function() {
     //   🚀  THE  NATIVE  " - 59:54 "  OVERRIDE  FIX
     //   Plyr  Natively  Calculates  Remaining  Time  INTERNALLY  &  Drifts  Wildly  When  The  Tab  Sleeps  .
     //   We  Use  Our  Pure   API  Math  To  Forcefully  Overwrite  The  Broken  Numbers  On  The  Screen  !!
+    const shakaRange = isShakaLive ? window.shakaPlayer.seekRange() : null;
+    const shakaWindowLen = shakaRange ? Math.max(0, shakaRange.end - shakaRange.start) : 0;
+    const shakaPosInWindow = shakaRange ? Math.max(0, Math.min(shakaWindowLen, cur - shakaRange.start)) : 0;
+
     const curEl = document.querySelector('.plyr__time--current');
     if (curEl) {
         if (isShakaLive) {
-            if (window._isTimeInverted) {
-                curEl.textContent = '-' + formatTime(Math.floor(ytDrift));
-            } else {
-                curEl.textContent = ytDrift <= 8 ? 'LIVE' : '-' + formatTime(Math.floor(ytDrift));
-            }
+            curEl.textContent = window._isTimeInverted
+                ? '-' + formatTime(Math.floor(ytDrift))
+                : formatTime(Math.floor(shakaPosInWindow));
         } else {
             if (window._isTimeInverted) {
                 const remainingSecs = isYtLive ? ytDrift : Math.max(0, dur - cur);
@@ -2881,7 +2883,7 @@ window.startSessionTracking = function() {
 
     const durEl = document.querySelector('.plyr__time--duration');
     if (durEl) {
-        durEl.textContent = isShakaLive ? 'LIVE' : formatTime(Math.floor(dur));
+        durEl.textContent = isShakaLive ? formatTime(Math.floor(shakaWindowLen)) : formatTime(Math.floor(dur));
     }
   }
 
