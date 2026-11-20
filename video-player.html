@@ -1296,18 +1296,21 @@ const plyrConfig = {
     'play-large', 'play', 'progress', 'current-time',
     'duration', 'mute', 'captions', 'settings', 'fullscreen'
   ],
-  //   ' quality '  is Placed First So It Appears Above  ' speed '
+  
+  //   " quality "  is  Placed  First  So  it  Appears  Above  " speed "
   settings: ['quality', 'speed', 'volume'],
+  storage: { enabled: false },
   toggleInvert: true,           
   speed: {
     selected: 1,
     options: [0.75, 1, 1.15, 1.25, 1.45, 1.6, 1.75, 2]
   },
-  //   👇🏻  YOUTUBE UI FIX  :  Forcing Plyr To Enforce The  Zero - Controls  Policy
+
+  //   👇🏻  YOUTUBE  UI  FIX  :  Forcing  Plyr  To  Enforce  The  Zero - Controls  Policy
   youtube: { modestbranding: 1, rel: 0, noCookie: true, controls: 0, iv_load_policy: 3, showinfo: 0 }
 };
 
-//   We Wrap All Event Listeners in a Function So They Wait For Dynamic Qualities To Load
+//   We  Wrap  All  Event  Listeners  in  a  Function  So  They  Wait  For  Dynamic  Qualities  To  Load
 function initAllPlayerEvents(plyrInstance) {
   window.player = plyrInstance;
 
@@ -1322,7 +1325,7 @@ function initAllPlayerEvents(plyrInstance) {
   player.on('waiting', showCustomLoader);
   player.on('seeking', showCustomLoader);
   
-  //   👇🏻  THE FIX  :  Hide The Loader When The UI is Built So You Can Click Play
+  //   👇🏻  THE  FIX  :  Hide  The  Loader  When  The  UI  is  Built  So  You  Can  Click  Play
   player.on('ready', hideCustomLoader);
   player.on('canplay', hideCustomLoader);
   player.on('playing', hideCustomLoader);
@@ -1330,26 +1333,26 @@ function initAllPlayerEvents(plyrInstance) {
   player.on('error', hideCustomLoader);
   player.on('loadeddata', hideCustomLoader);
 
-  //   👇🏻  YOUTUBE LOADER FIX  :  Map YouTube's Internal States Directly To Our Custom Loader
+  //   👇🏻  YOUTUBE  LOADER  FIX  :  Map  YouTube's  Internal  States  Directly  To  Our  Custom  Loader
   player.on('statechange', (event) => {
-    //   YouTube State 3  =  Buffering  ( Force Our Custom Loader Over Google's )
+    //   YouTube  State - 3  =  Buffering   (  Force  Our  Custom  Loader  Over  Google's  )
     if (event.detail.code === 3) {
       showCustomLoader();
     } 
-    //   YouTube State 1 = Playing, 2 = Paused (Hide our loader)
+    //   YouTube  State - 1  =  Playing  ,,   2  =  Paused   (  Hide  Our  Loader  )
     else if (event.detail.code === 1 || event.detail.code === 2) {
       hideCustomLoader();
     }
   });
 
-  //   👇🏻  PLAY CLICK FIX  :  If User Clicks Play ,  Instantly Show Our Spinner Until  ' playing '  Fires
+  //   👇🏻  PLAY  CLICK  FIX  :  If  User  Clicks  Play  ,,   Instantly  Show  Our  Spinner  Until  " playing "  Fires
   player.on('play', () => {
     if (!player.playing) showCustomLoader();
   });
-  player.on('pause', hideCustomLoader);      //   Safety Net
+  player.on('pause', hideCustomLoader);          //   Safety  Net
 
 
-  //   Only Force The Loader Initially For HLS & DRM Streams That Auto-Buffer
+  //   Only  Force  The  Loader  Initially  For  HLS  &  DRM  Streams  That  Auto - Buffer
   if (provider === 'hls' || provider === 'drm' || provider === 'dash' || hasDrmKeys) {
     showCustomLoader();
   } else {
@@ -1357,7 +1360,7 @@ function initAllPlayerEvents(plyrInstance) {
   }
 
 
-  //   Invert Time Toggle
+  //   Invert  Time  Toggle
   (function() {
     const root = document.querySelector('.plyr');
     if (!root) return;
@@ -1400,6 +1403,14 @@ function initAllPlayerEvents(plyrInstance) {
       injectInlineVolumeSlider();
       disableGesturesWhileMenusOpen();
       setupShakaLiveSeekBar();
+
+      //   Ensure  Every  Fresh  Load  Starts  at  Normal  (  1x  )  Speed
+      player.speed = 1;
+      player.on('playing', () => {
+        if (player.media && player.media.playbackRate > 0 && player.media.playbackRate < 0.5) {
+          player.speed = 1;
+        }
+      });
 
       //   Fixed  Skip  Logic   :   Wait  For  moov  Metadata   (  readyState >= 1  )   &  Seek  Once
       if (!noSkip && !isDrmOrDash && player.provider !== 'youtube' && player.media && isFinite(player.media.duration)) {
