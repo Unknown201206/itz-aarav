@@ -1,138 +1,895 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AaRAv OffiCiaL - Link Converter</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>tailwind.config = { darkMode: 'class' }</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AaRAv OffiCiaL — Smart Link Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
   <style>
-    body { background-color: #0f172a; color: white; overscroll-behavior: none; }
-    .neon-box {
-      border: 1px solid #6b21a8;
-      box-shadow: 0 0 15px rgba(107, 33, 168, 0.5);
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(10px);
+    /* =========================================================================
+       THEME VARIABLES — LIGHT MODE (MAXIMUM WHITE NEOMORPHISM + WHITE GLASS)
+       ========================================================================= */
+    :root {
+      --bg-base: #f5f7fc;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+
+      /* Glassmorphism (White) */
+      --glass-bg: rgba(255, 255, 255, 0.78);
+      --glass-border: rgba(255, 255, 255, 0.95);
+      --glass-inner-highlight: inset 0 1px 1px rgba(255, 255, 255, 1), inset 0 -1px 2px rgba(148, 163, 184, 0.14);
+
+      /* Neomorphism (Maximum White + Purple/Blue Tints) */
+      --neo-surface: #f7f9fe;
+      --neo-elevated: #ffffff;
+      --neo-shadow-out: 10px 10px 24px rgba(99, 102, 241, 0.12), -10px -10px 24px rgba(255, 255, 255, 0.96);
+      --neo-shadow-sm: 5px 5px 12px rgba(100, 116, 139, 0.14), -5px -5px 12px rgba(255, 255, 255, 0.98);
+      --neo-shadow-in: inset 5px 5px 12px rgba(148, 163, 184, 0.22), inset -5px -5px 12px rgba(255, 255, 255, 0.98);
+      --neo-border: rgba(255, 255, 255, 0.85);
+
+      /* Brand Accents (Purple, Blue, Black) */
+      --accent-purple: #7c3aed;
+      --accent-blue: #2563eb;
+      --accent-cyan: #06b6d4;
+      --accent-pink: #db2777;
+      --accent-dark: #111827;
+
+      /* Output & Badges */
+      --output-bg: rgba(255, 255, 255, 0.86);
+      --output-text: #1e293b;
+      --badge-bg: rgba(124, 58, 237, 0.1);
+      --badge-text: #6d28d9;
+
+      /* Mesh Orbs */
+      --orb-1: rgba(139, 92, 246, 0.30);
+      --orb-2: rgba(59, 130, 246, 0.28);
+      --orb-3: rgba(236, 72, 153, 0.22);
+      --orb-4: rgba(6, 182, 212, 0.22);
+      --orb-5: rgba(15, 23, 42, 0.06);
     }
-    .neon-btn {
-      background: linear-gradient(90deg, #9c0892, #2d0a5e);
-      box-shadow: 0 4px 15px rgba(156, 8, 146, 0.4);
-      transition: all 0.2s ease;
+
+    /* =========================================================================
+       DARK MODE (OBSIDIAN NEOMORPHISM + BLACK GLASS + PURPLE/BLUE GLOW)
+       ========================================================================= */
+    html.dark {
+      --bg-base: #070a12;
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+
+      /* Glassmorphism (Black) */
+      --glass-bg: rgba(13, 17, 29, 0.72);
+      --glass-border: rgba(255, 255, 255, 0.11);
+      --glass-inner-highlight: inset 0 1px 1px rgba(255, 255, 255, 0.12), inset 0 -1px 2px rgba(0, 0, 0, 0.6);
+
+      /* Neomorphism (Black + Subtle Purple/Blue Rim) */
+      --neo-surface: #0e1320;
+      --neo-elevated: #121829;
+      --neo-shadow-out: 10px 10px 26px rgba(0, 0, 0, 0.75), -8px -8px 20px rgba(124, 58, 237, 0.08);
+      --neo-shadow-sm: 5px 5px 12px rgba(0, 0, 0, 0.72), -4px -4px 10px rgba(255, 255, 255, 0.04);
+      --neo-shadow-in: inset 5px 5px 12px rgba(0, 0, 0, 0.78), inset -4px -4px 10px rgba(255, 255, 255, 0.04);
+      --neo-border: rgba(255, 255, 255, 0.07);
+
+      /* Output & Badges */
+      --output-bg: rgba(8, 11, 20, 0.85);
+      --output-text: #e2e8f0;
+      --badge-bg: rgba(139, 92, 246, 0.2);
+      --badge-text: #c4b5fd;
+
+      /* Mesh Orbs */
+      --orb-1: rgba(124, 58, 237, 0.34);
+      --orb-2: rgba(37, 99, 235, 0.30);
+      --orb-3: rgba(219, 39, 119, 0.22);
+      --orb-4: rgba(6, 182, 212, 0.20);
+      --orb-5: rgba(255, 255, 255, 0.05);
     }
-    .neon-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(156, 8, 146, 0.6); }
-    .neon-btn:active { transform: translateY(1px); }
+
+    /* =========================================================================
+       BASE & MULTI-COLOR AMBIENT BACKGROUND
+       ========================================================================= */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 40px;
+      position: relative;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+      transition: background-color 0.4s ease, color 0.4s ease;
+    }
+
+    /* Multi-color animated mesh background */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(85px);
+      opacity: 0.95;
+      will-change: transform;
+      animation: floatOrb 18s ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 440px; height: 440px;
+      background: radial-gradient(circle, var(--orb-1), transparent 70%);
+      top: -120px; left: -100px;
+    }
+    .orb-2 {
+      width: 480px; height: 480px;
+      background: radial-gradient(circle, var(--orb-2), transparent 70%);
+      bottom: -140px; right: -100px;
+      animation-delay: -5s;
+    }
+    .orb-3 {
+      width: 340px; height: 340px;
+      background: radial-gradient(circle, var(--orb-3), transparent 70%);
+      top: 22%; right: 8%;
+      animation-delay: -9s;
+    }
+    .orb-4 {
+      width: 320px; height: 320px;
+      background: radial-gradient(circle, var(--orb-4), transparent 70%);
+      bottom: 18%; left: 6%;
+      animation-delay: -13s;
+    }
+    .orb-5 {
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, var(--orb-5), transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    @keyframes floatOrb {
+      0%   { transform: translate(0, 0) scale(1); }
+      50%  { transform: translate(26px, -22px) scale(1.07); }
+      100% { transform: translate(-18px, 24px) scale(0.96); }
+    }
+
+    /* =========================================================================
+       TOP BAR & NEOMORPHIC THEME TOGGLE
+       ========================================================================= */
+    .top-bar {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: var(--neo-shadow-sm), var(--glass-inner-highlight);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.25s ease, background 0.3s ease;
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-2px);
+    }
+
+    .theme-toggle:active {
+      transform: translateY(0) scale(0.98);
+      box-shadow: var(--neo-shadow-in);
+    }
+
+    .toggle-track {
+      width: 38px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--neo-surface);
+      box-shadow: var(--neo-shadow-in);
+      position: relative;
+      padding: 2px;
+      transition: background 0.3s ease;
+    }
+
+    .toggle-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+      box-shadow: 0 2px 6px rgba(124, 58, 237, 0.5);
+      transform: translateX(0);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    html.dark .toggle-thumb {
+      transform: translateX(18px);
+      background: linear-gradient(135deg, #38bdf8, #a855f7);
+    }
+
+    /* =========================================================================
+       HEADER / BRANDING
+       ========================================================================= */
+    .brand-header {
+      text-align: center;
+      margin-bottom: 26px;
+    }
+
+    .brand-feather {
+      width: 112px;
+      height: auto;
+      margin: 0 auto -14px;
+      display: block;
+      object-fit: contain;
+      transform: rotate(-22deg) scaleX(0.92);
+      filter: drop-shadow(0 8px 16px rgba(124, 58, 237, 0.25));
+    }
+
+    .brand-title {
+      font-size: clamp(1.75rem, 4vw, 2.35rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(100deg, #111827 0%, #6d28d9 48%, #2563eb 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.15;
+    }
+
+    html.dark .brand-title {
+      background: linear-gradient(100deg, #ffffff 0%, #c084fc 50%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      margin-top: 6px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* =========================================================================
+       MAIN GLASS + NEOMORPHIC CONTAINER
+       ========================================================================= */
+    .main-stack {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .glass-neo-card {
+      position: relative;
+      border-radius: 26px;
+      padding: 26px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+      border: 1.5px solid var(--glass-border);
+      box-shadow: var(--neo-shadow-out), var(--glass-inner-highlight);
+      transition: background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+    }
+
+    .card-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .field-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .format-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 4px 11px;
+      border-radius: 999px;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      border: 1px solid rgba(124, 58, 237, 0.22);
+      transition: all 0.25s ease;
+    }
+
+    /* Recessed Neomorphic Input Bar */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .neo-input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--neo-border);
+      background: var(--neo-surface);
+      box-shadow: var(--neo-shadow-in);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      outline: none;
+      transition: box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .neo-input::placeholder {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .neo-input:focus {
+      border-color: rgba(124, 58, 237, 0.55);
+      box-shadow: var(--neo-shadow-in), 0 0 0 3px rgba(124, 58, 237, 0.14);
+    }
+
+    /* Small Neomorphic Action Buttons */
+    .neo-btn-secondary {
+      padding: 0 16px;
+      border-radius: 15px;
+      border: 1px solid var(--glass-border);
+      background: var(--neo-elevated);
+      box-shadow: var(--neo-shadow-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 0.18s ease, box-shadow 0.2s ease, color 0.2s ease;
+    }
+
+    .neo-btn-secondary:hover {
+      transform: translateY(-2px);
+      color: var(--accent-purple);
+    }
+
+    .neo-btn-secondary:active {
+      transform: translateY(0);
+      box-shadow: var(--neo-shadow-in);
+    }
+
+    /* Supported Chips */
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 10px;
+      background: var(--neo-surface);
+      box-shadow: var(--neo-shadow-sm);
+      color: var(--text-secondary);
+      border: 1px solid var(--neo-border);
+    }
+
+    /* Collapsible Player Options */
+    .options-box {
+      margin-top: 16px;
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: var(--neo-surface);
+      box-shadow: var(--neo-shadow-in);
+      border: 1px solid var(--neo-border);
+    }
+
+    .options-box summary {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .options-box summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .options-grid .full-span {
+      grid-column: 1 / -1;
+    }
+
+    .mini-input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: var(--neo-elevated);
+      box-shadow: var(--neo-shadow-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .mini-input:focus {
+      border-color: var(--accent-blue);
+    }
+
+    .checkbox-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: var(--neo-elevated);
+      box-shadow: var(--neo-shadow-sm);
+      border: 1px solid var(--glass-border);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .checkbox-pill input {
+      accent-color: var(--accent-purple);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    /* Primary Gradient + Neomorphic CTA Button */
+    .btn-primary {
+      width: 100%;
+      margin-top: 18px;
+      padding: 15px 20px;
+      border-radius: 16px;
+      border: none;
+      background: linear-gradient(110deg, #111827 0%, #6d28d9 52%, #2563eb 100%);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(109, 40, 217, 0.34), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+      transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.06);
+      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px) scale(0.99);
+    }
+
+    /* =========================================================================
+       OUTPUT CARD
+       ========================================================================= */
+    .output-card {
+      display: none;
+      animation: cardReveal 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .output-card.visible {
+      display: block;
+    }
+
+    @keyframes cardReveal {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .output-textarea {
+      width: 100%;
+      min-height: 92px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--neo-border);
+      background: var(--output-bg);
+      box-shadow: var(--neo-shadow-in);
+      color: var(--output-text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .action-grid .neo-btn-secondary {
+      padding: 14px 16px;
+      font-size: 0.82rem;
+    }
+
+    .action-grid .btn-primary {
+      margin-top: 0;
+      padding: 14px 16px;
+      font-size: 0.82rem;
+    }
+
+    /* =========================================================================
+       TOAST NOTIFICATION
+       ========================================================================= */
+    .toast {
+      position: fixed;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      padding: 11px 20px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.92);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(14px);
+      font-size: 0.82rem;
+      font-weight: 600;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 100;
+    }
+
+    html.dark .toast {
+      background: rgba(255, 255, 255, 0.94);
+      color: #0f172a;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 480px) {
+      .glass-neo-card { padding: 20px 18px; border-radius: 22px; }
+      .input-row { flex-direction: column; }
+      .neo-btn-secondary { padding: 12px; }
+      .options-grid { grid-template-columns: 1fr; }
+      .action-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+<body>
 
-  <!--   Header   -->
-  <div class="text-center mb-8">
-    <img src="feather-transparent.png" alt="Feather" class="w-32 mx-auto object-contain -mb-4 rotate-[-25deg] scale-x-[0.9]" onerror="this.style.display='none'">
-    <h2 class="bg-gradient-to-r from-pink-500 to-blue-500 bg-clip-text text-transparent text-2xl sm:text-3xl font-bold mt-2">AaRAv OffiCiaL</h2>
-    <p class="text-gray-400 text-sm mt-1 font-semibold tracking-widest">SMART LINK CONVERTER</p>
+  <!-- Multi-Color Mesh Background -->
+  <div class="bg-mesh" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <div class="orb orb-5"></div>
   </div>
 
-  <!--   Input Section   -->
-  <div class="w-full max-w-lg neon-box rounded-xl p-6 mb-6">
-    <label class="block text-sm font-bold text-purple-300 mb-2">Paste Raw Video Link (PW, MP4, M3U8, YouTube):</label>
-    <div class="flex gap-2">
-      <input type="text" id="rawLink" placeholder="https://..." class="w-full bg-gray-900 border border-purple-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-pink-500">
-      <button onclick="pasteFromClipboard()" class="bg-gray-800 border border-gray-600 rounded-lg px-4 text-xs font-bold hover:bg-gray-700 transition">PASTE</button>
-    </div>
-    <button onclick="convertLink()" class="neon-btn w-full mt-4 py-3 rounded-lg text-white font-bold text-sm tracking-wider">CONVERT LINK</button>
+  <!-- Top Theme Toggle Bar -->
+  <div class="top-bar">
+    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle Dark and Light Theme">
+      <span id="themeLabel">Light Mode</span>
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    </button>
   </div>
 
-  <!--   Output Section  ( Hidden By Default )   -->
-  <div id="outputSection" class="w-full max-w-lg neon-box rounded-xl p-6 hidden">
-    <label class="block text-sm font-bold text-green-400 mb-2">Ready to Play URL:</label>
-    <textarea id="finalUrl" readonly class="w-full bg-gray-900 border border-green-800 rounded-lg p-3 text-sm text-green-300 h-24 resize-none focus:outline-none mb-4"></textarea>
-    
-    <div class="flex gap-3">
-      <button onclick="copyLink()" class="flex-1 bg-gray-800 border border-gray-600 rounded-lg py-3 text-sm font-bold hover:bg-gray-700 transition">📄 COPY LINK</button>
-      <button onclick="playVideo()" class="flex-1 neon-btn rounded-lg py-3 text-sm font-bold">▶ PLAY NOW</button>
-    </div>
-  </div>
+  <!-- Brand Header -->
+  <header class="brand-header">
+    <img src="feather-transparent.png" alt="Feather" class="brand-feather" onerror="this.style.display='none'" />
+    <h1 class="brand-title">AaRAv OffiCiaL</h1>
+    <p class="brand-subtitle">Smart Link Converter</p>
+  </header>
+
+  <!-- Main Content Stack -->
+  <main class="main-stack">
+
+    <!-- Input Card -->
+    <section class="glass-neo-card">
+      <div class="card-header-row">
+        <label for="rawLink" class="field-label">Paste Video Link</label>
+        <span id="detectedBadge" class="format-badge">Auto-Detect Ready</span>
+      </div>
+
+      <div class="input-row">
+        <input
+          type="url"
+          id="rawLink"
+          class="neo-input"
+          placeholder="https://youtube.com/... or .m3u8 / .mpd / .mp4"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" class="neo-btn-secondary" onclick="pasteFromClipboard()">PASTE</button>
+        <button type="button" class="neo-btn-secondary" onclick="clearInput()">CLEAR</button>
+      </div>
+
+      <div class="chips-row">
+        <span class="chip">YouTube / Shorts / Live</span>
+        <span class="chip">HLS (.m3u8)</span>
+        <span class="chip">DASH (.mpd)</span>
+        <span class="chip">MP4 / WebM / Direct</span>
+      </div>
+
+      <!-- Optional Player Settings -->
+      <details class="options-box">
+        <summary>
+          <span>Player Options (Title &amp; Skip)</span>
+          <span>▾</span>
+        </summary>
+        <div class="options-grid">
+          <input
+            type="text"
+            id="videoTitle"
+            class="mini-input full-span"
+            placeholder="Custom Video Title (optional)"
+          />
+          <input
+            type="number"
+            id="skipSeconds"
+            class="mini-input"
+            placeholder="Skip intro seconds (e.g. 15)"
+            min="0"
+            step="0.5"
+          />
+          <label class="checkbox-pill">
+            <input type="checkbox" id="noSkipToggle" />
+            <span>Disable Auto-Skip</span>
+          </label>
+        </div>
+      </details>
+
+      <button type="button" class="btn-primary" onclick="convertLink()">Convert Link</button>
+    </section>
+
+    <!-- Output Card -->
+    <section id="outputSection" class="glass-neo-card output-card">
+      <div class="card-header-row">
+        <label for="finalUrl" class="field-label">Ready to Play URL</label>
+        <span id="outputProviderBadge" class="format-badge">READY</span>
+      </div>
+
+      <textarea id="finalUrl" class="output-textarea" readonly></textarea>
+
+      <div class="action-grid">
+        <button type="button" class="neo-btn-secondary" onclick="copyLink()">Copy Link</button>
+        <button type="button" class="btn-primary" onclick="playVideo()">▶ Play Now</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
+    /* =========================================================================
+       THEME MANAGEMENT (LIGHT DEFAULT + PERSISTENT DARK MODE)
+       ========================================================================= */
+    const htmlEl = document.documentElement;
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const themeLabel = document.getElementById('themeLabel');
+
+    function applyTheme(mode) {
+      if (mode === 'dark') {
+        htmlEl.classList.add('dark');
+        themeLabel.textContent = 'Dark Mode';
+      } else {
+        htmlEl.classList.remove('dark');
+        themeLabel.textContent = 'Light Mode';
+      }
+      localStorage.setItem('aarav_theme', mode);
+    }
+
+    // Default to Light Mode unless user previously picked Dark Mode
+    const savedTheme = localStorage.getItem('aarav_theme') || 'light';
+    applyTheme(savedTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const nextMode = htmlEl.classList.contains('dark') ? 'light' : 'dark';
+      applyTheme(nextMode);
+    });
+
+    /* =========================================================================
+       TOAST HELPER
+       ========================================================================= */
+    let toastTimer = null;
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    /* =========================================================================
+       SMART URL PARSER FOR ALL STANDARD VIDEO FORMATS
+       ========================================================================= */
+    function extractYouTubeId(url) {
+      const ytRegex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|live\/|shorts\/))([a-zA-Z0-9_-]{11})/;
+      const match = url.match(ytRegex);
+      return match ? match[1] : null;
+    }
+
+    function detectLinkType(rawUrl) {
+      const trimmed = rawUrl.trim();
+      if (!trimmed) return null;
+
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(trimmed);
+      } catch {
+        return { error: 'Invalid URL format. Include https:// at the start.' };
+      }
+
+      const lower = trimmed.toLowerCase();
+      const pathname = parsedUrl.pathname.toLowerCase();
+
+      // 1. YouTube (watch, youtu.be, shorts, live, embed)
+      if (parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be')) {
+        const videoID = extractYouTubeId(trimmed);
+        if (!videoID) return { error: 'Could not extract an 11-character YouTube Video ID.' };
+        return { provider: 'youtube', label: 'YouTube', videoID };
+      }
+
+      // 2. DASH (.mpd)
+      if (pathname.endsWith('.mpd') || lower.includes('.mpd?')) {
+        return { provider: 'dash', label: 'DASH (.mpd)', video: trimmed };
+      }
+
+      // 3. HLS (.m3u8)
+      if (pathname.endsWith('.m3u8') || lower.includes('.m3u8?') || lower.includes('format=m3u8')) {
+        return { provider: 'hls', label: 'HLS (.m3u8)', video: trimmed };
+      }
+
+      // 4. Direct HTML5 Video (.mp4, .webm, .ogg, .mov, archive.org, etc.)
+      return { provider: 'html5', label: 'HTML5 Video', video: trimmed };
+    }
+
+    // Live badge preview as user types or pastes
+    const rawLinkInput = document.getElementById('rawLink');
+    const detectedBadge = document.getElementById('detectedBadge');
+
+    function updateDetectedBadge() {
+      const val = rawLinkInput.value.trim();
+      if (!val) {
+        detectedBadge.textContent = 'Auto-Detect Ready';
+        return;
+      }
+      const result = detectLinkType(val);
+      detectedBadge.textContent = result.error ? 'Check URL' : result.label;
+    }
+
+    rawLinkInput.addEventListener('input', updateDetectedBadge);
+    rawLinkInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') convertLink();
+    });
+
+    /* =========================================================================
+       ACTIONS: PASTE, CLEAR, CONVERT, COPY, PLAY
+       ========================================================================= */
     async function pasteFromClipboard() {
       try {
         const text = await navigator.clipboard.readText();
-        document.getElementById('rawLink').value = text;
-      } catch (err) {
-        alert("Clipboard permission denied. Please paste manually.");
+        if (!text) return showToast('Clipboard is empty');
+        rawLinkInput.value = text.trim();
+        updateDetectedBadge();
+        showToast('Link pasted');
+      } catch {
+        showToast('Clipboard access denied — paste manually');
       }
+    }
+
+    function clearInput() {
+      rawLinkInput.value = '';
+      document.getElementById('videoTitle').value = '';
+      document.getElementById('skipSeconds').value = '';
+      document.getElementById('noSkipToggle').checked = false;
+      document.getElementById('outputSection').classList.remove('visible');
+      updateDetectedBadge();
+      rawLinkInput.focus();
     }
 
     function convertLink() {
-      const rawUrl = document.getElementById('rawLink').value.trim();
-      if (!rawUrl) return alert('Please paste a link first!');
+      const rawUrl = rawLinkInput.value.trim();
+      if (!rawUrl) return showToast('Paste a video link first');
 
-      let provider = '';
-      let videoParam = '';
-      let videoID = '';
+      const parsed = detectLinkType(rawUrl);
+      if (parsed.error) return showToast(parsed.error);
 
-      try {
-        //   1.  YouTube Logic  ( Updated To Handle  " /live/ " ,  " /shorts/ " , &  " ?si= " )
-        if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
-          provider = 'youtube';
-          
-          //   Smart Regex  :  Extracts Exactly The  11 - Character  Video ID  From Any YouTube Link Format
-          const ytRegex = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|live\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-          const match = rawUrl.match(ytRegex);
-          
-          videoID = (match && match[2].length === 11) ? match[2] : null;
-          
-          if (!videoID) throw new Error("Invalid YouTube Link. Could not extract the 11-character ID.");
-        } 
+      const query = new URLSearchParams();
+      query.set('provider', parsed.provider);
 
-        //   2.  PW / Heroku  Protected Stream Logic  ( Reverted To Vercel Proxy To Allow  AUTH-KEY  Preflight )
-        else if (rawUrl.includes('live-server') || rawUrl.includes('herokuapp.com') || rawUrl.includes('/pw/live')) {
-          provider = 'hls';
-          const urlObj = new URL(rawUrl);
-          
-          //   Strip Domain ,  Extract Path + Token ,  Replace  " /pw/live "  With  " /live "  For Direct Proxy Access
-          let pathAndQuery = urlObj.pathname + urlObj.search;
-          pathAndQuery = pathAndQuery.replace('/pw/live', '/live');
-          
-          //   Route Through Your Vercel  vercel.json  Proxy To Bypass CORS Safely & Allow Header Injection
-          const proxyPath = '/stream-proxy' + pathAndQuery; 
-          videoParam = encodeURIComponent(proxyPath);
-        }
-
-        //   3.  Generic Public M3U8 Logic
-        else if (rawUrl.includes('.m3u8')) {
-          provider = 'hls';
-          videoParam = encodeURIComponent(rawUrl);
-        }
-
-        //   4.  Fallback HTML5  ( MP4 , Archive.org ,   etc. )
-        else {
-          provider = 'html5';
-          videoParam = encodeURIComponent(rawUrl);
-        }
-
-        //   Build Final Vercel URL
-        //   window.location.origin  Grabs Your Current Domain  ( e.g., https://itz-aarav.vercel.app )
-        let baseUrl = window.location.origin + '/video-player.html';
-        let finalUrl = `${baseUrl}?provider=${provider}`;
-        
-        if (provider === 'youtube') finalUrl += `&videoID=${videoID}`;
-        else finalUrl += `&video=${videoParam}`;
-
-        document.getElementById('finalUrl').value = finalUrl;
-        document.getElementById('outputSection').classList.remove('hidden');
-
-      } catch (error) {
-        alert("Error parsing link. Make sure it is a valid URL.");
-        console.error(error);
+      if (parsed.provider === 'youtube') {
+        query.set('videoID', parsed.videoID);
+      } else {
+        query.set('video', parsed.video);
       }
+
+      const customTitle = document.getElementById('videoTitle').value.trim();
+      const skipSecs = document.getElementById('skipSeconds').value.trim();
+      const noSkip = document.getElementById('noSkipToggle').checked;
+
+      if (customTitle) query.set('title', customTitle);
+      if (noSkip) {
+        query.set('noskip', '1');
+      } else if (skipSecs !== '' && Number.isFinite(parseFloat(skipSecs))) {
+        query.set('skip', skipSecs);
+      }
+
+      const baseUrl = window.location.origin + '/video-player.html';
+      const finalUrl = `${baseUrl}?${query.toString()}`;
+
+      document.getElementById('finalUrl').value = finalUrl;
+      document.getElementById('outputProviderBadge').textContent = parsed.label.toUpperCase();
+      document.getElementById('outputSection').classList.add('visible');
+      showToast('Converted for ' + parsed.label);
     }
 
-    function copyLink() {
-      const urlBox = document.getElementById('finalUrl');
-      urlBox.select();
-      document.execCommand('copy');
-      alert('Link Copied to Clipboard!');
+    async function copyLink() {
+      const finalUrl = document.getElementById('finalUrl').value;
+      if (!finalUrl) return;
+      try {
+        await navigator.clipboard.writeText(finalUrl);
+        showToast('Link copied to clipboard');
+      } catch {
+        const box = document.getElementById('finalUrl');
+        box.select();
+        document.execCommand('copy');
+        showToast('Link copied to clipboard');
+      }
     }
 
     function playVideo() {
