@@ -663,10 +663,35 @@
         <span class="chip">MP4 / WebM / Direct</span>
       </div>
 
-      <!-- Optional Player Settings -->
+      <!--   Auto - Extract  From  Raw  Page  HTML   -->
       <details class="options-box">
         <summary>
-          <span>Player Options (Title &amp; Skip)</span>
+          <span>Auto - Extract  From  Page  HTML   (  Optional  )</span>
+          <span>▾</span>
+        </summary>
+        <div class="options-grid">
+          <textarea
+            id="htmlSourceInput"
+            class="mini-input full-span"
+            rows="4"
+            placeholder="Paste  Full  HTML / JS  Source  of  a  Stream  Page  Here  To  Auto - Detect  API  ,,   .m3u8 / .mpd  ,,   Referer  ,,   Cookie  ,,   UA  &  DRM  Keys   🕊️  ......."
+            style="resize: vertical; font-family: monospace;"
+          ></textarea>
+          <button
+            type="button"
+            class="neo-btn-secondary full-span"
+            style="padding: 10px;"
+            onclick="extractFromHtml()"
+          >
+            ⚡   Extract  Links  &amp;  Headers  From  HTML
+          </button>
+        </div>
+      </details>
+
+      <!--   Optional  Player  Settings  &  Headers   -->
+      <details class="options-box" id="advancedOptions">
+        <summary>
+          <span>Player  Options  ,,   Proxy  ,,   DRM  &amp;  Headers</span>
           <span>▾</span>
         </summary>
         <div class="options-grid">
@@ -674,19 +699,57 @@
             type="text"
             id="videoTitle"
             class="mini-input full-span"
-            placeholder="Custom Video Title (optional)"
+            placeholder="Custom  Video  Title   (  Optional  )"
+          />
+          <input
+            type="text"
+            id="channelId"
+            class="mini-input"
+            placeholder="Channel  ID   (  For  JSON  API  ,,   E.g.  -  STEN3  )"
           />
           <input
             type="number"
             id="skipSeconds"
             class="mini-input"
-            placeholder="Skip intro seconds (e.g. 15)"
+            placeholder="Skip  Intro  Seconds   (  E.g. 15  )"
             min="0"
             step="0.5"
           />
+          <input
+            type="text"
+            id="drmKey"
+            class="mini-input full-span"
+            placeholder="DRM  ClearKey  (  kid:key  )  or  Widevine  License  URL"
+          />
+          <input
+            type="url"
+            id="customReferer"
+            class="mini-input full-span"
+            placeholder="Referer  URL   (  E.g.  -  https://matcheslinkz.pages.dev/  )"
+          />
+          <input
+            type="text"
+            id="customCookie"
+            class="mini-input full-span"
+            placeholder="Cookie  /  __hdnea__ Token   (  Optional  )"
+          />
+          <input
+            type="text"
+            id="customUa"
+            class="mini-input full-span"
+            placeholder="Custom  User - Agent   (  Optional  )"
+          />
+          <label class="checkbox-pill">
+            <input type="checkbox" id="useProxyToggle" />
+            <span>Use  Edge  Proxy   (  &amp;proxy=1  )</span>
+          </label>
           <label class="checkbox-pill">
             <input type="checkbox" id="noSkipToggle" />
-            <span>Disable Auto-Skip</span>
+            <span>Disable  Auto - Skip</span>
+          </label>
+          <label class="checkbox-pill full-span">
+            <input type="checkbox" id="debugToggle" />
+            <span>Enable  Debug  Console  (  &amp;debug=1  )</span>
           </label>
         </div>
       </details>
@@ -716,7 +779,7 @@
 
   <script>
     /* =========================================================================
-       THEME MANAGEMENT (LIGHT DEFAULT + PERSISTENT DARK MODE)
+       THEME MANAGEMENT (SYNCED WITH video-player.html VIA 'theme' KEY)
        ========================================================================= */
     const htmlEl = document.documentElement;
     const themeToggleBtn = document.getElementById('themeToggle');
@@ -730,11 +793,10 @@
         htmlEl.classList.remove('dark');
         themeLabel.textContent = 'Light Mode';
       }
-      localStorage.setItem('aarav_theme', mode);
+      localStorage.setItem('theme', mode);
     }
 
-    // Default to Light Mode unless user previously picked Dark Mode
-    const savedTheme = localStorage.getItem('aarav_theme') || 'light';
+    const savedTheme = localStorage.getItem('theme') || localStorage.getItem('aarav_theme') || 'light';
     applyTheme(savedTheme);
 
     themeToggleBtn.addEventListener('click', () => {
@@ -751,16 +813,115 @@
       toast.textContent = message;
       toast.classList.add('show');
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
     /* =========================================================================
-       SMART URL PARSER FOR ALL STANDARD VIDEO FORMATS
+       HTML SOURCE AUTO-EXTRACTOR (API, M3U8/MPD, REFERER, COOKIE, UA, DRM)
+       ========================================================================= */
+    function extractFromHtml() {
+      const src = document.getElementById('htmlSourceInput').value;
+      if (!src || !src.trim()) return showToast('Paste page HTML first');
+
+      const found = [];
+
+      // 1. JSON API (e.g. sports.json)
+      const apiMatch = src.match(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/i);
+      // 2. Direct .m3u8 or .mpd stream
+      const streamMatch = src.match(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/i);
+
+      if (apiMatch) {
+        rawLinkInput.value = apiMatch[0];
+        found.push('API');
+      } else if (streamMatch) {
+        rawLinkInput.value = streamMatch[0];
+        found.push('Stream');
+      }
+
+      // 3. Referer
+      const refMatch = src.match(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/i);
+      if (refMatch) {
+        document.getElementById('customReferer').value = refMatch[1];
+        found.push('Referer');
+      }
+
+      // 4. User-Agent
+      const uaMatch = src.match(/["']?user-agent["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/i);
+      if (uaMatch) {
+        document.getElementById('customUa').value = uaMatch[1];
+        found.push('UA');
+      }
+
+      // 5. Cookie / __hdnea__ token
+      const hdneaMatch = src.match(/__hdnea__=[^\s"'`&;]+/i);
+      const cookieMatch = src.match(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{8,})["']/i);
+      if (hdneaMatch) {
+        document.getElementById('customCookie').value = hdneaMatch[0];
+        found.push('Token');
+      } else if (cookieMatch) {
+        document.getElementById('customCookie').value = cookieMatch[1];
+        found.push('Cookie');
+      }
+
+      // 6. ClearKey DRM pairs (32-hex kid:key or "kid": "key")
+      const keys = [];
+      const colonRegex = /([0-9a-f]{32}:[0-9a-f]{32})/gi;
+      let m;
+      while ((m = colonRegex.exec(src)) !== null) {
+        if (!keys.includes(m[1].toLowerCase())) keys.push(m[1].toLowerCase());
+      }
+      const objRegex = /["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi;
+      while ((m = objRegex.exec(src)) !== null) {
+        const pair = `${m[1]}:${m[2]}`.toLowerCase();
+        if (!keys.includes(pair)) keys.push(pair);
+      }
+      if (keys.length) {
+        document.getElementById('drmKey').value = keys.join(',');
+        found.push(`${keys.length} DRM Key(s)`);
+      }
+
+      if (found.length) {
+        document.getElementById('advancedOptions').open = true;
+        updateDetectedBadge();
+        showToast('Extracted: ' + found.join(', '));
+      } else {
+        showToast('No stream URL or headers found in HTML');
+      }
+    }
+
+    /* =========================================================================
+       SMART URL PARSER (YOUTUBE, JSON API, WRAPPED M3U8, DASH, HTML5)
        ========================================================================= */
     function extractYouTubeId(url) {
       const ytRegex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|live\/|shorts\/))([a-zA-Z0-9_-]{11})/;
       const match = url.match(ytRegex);
       return match ? match[1] : null;
+    }
+
+    function unwrapWrapperUrl(rawUrl) {
+      let current = rawUrl;
+      let wrapperOrigin = '';
+      for (let i = 0; i < 3; i++) {
+        try {
+          const u = new URL(current);
+          const p = u.pathname.toLowerCase();
+          if (/\.(m3u8|mpd|mp4|webm|ogg|mov|json)$/i.test(p) || p.includes('proxy')) break;
+          const nested =
+            u.searchParams.get('url') ||
+            u.searchParams.get('src') ||
+            u.searchParams.get('file') ||
+            u.searchParams.get('stream');
+          if (nested && /^https?:\/\//i.test(nested.trim())) {
+            if (!wrapperOrigin) wrapperOrigin = u.origin + '/';
+            current = nested.trim();
+          } else {
+            break;
+          }
+        } catch {
+          break;
+        }
+      }
+      return { url: current, wrapperOrigin };
     }
 
     function detectLinkType(rawUrl) {
@@ -774,31 +935,36 @@
         return { error: 'Invalid URL format. Include https:// at the start.' };
       }
 
-      const lower = trimmed.toLowerCase();
-      const pathname = parsedUrl.pathname.toLowerCase();
+      const { url: unwrapped, wrapperOrigin } = unwrapWrapperUrl(trimmed);
+      const lower = unwrapped.toLowerCase();
+      const pathname = new URL(unwrapped).pathname.toLowerCase();
 
-      // 1. YouTube (watch, youtu.be, shorts, live, embed)
+      // 1. YouTube
       if (parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be')) {
         const videoID = extractYouTubeId(trimmed);
         if (!videoID) return { error: 'Could not extract an 11-character YouTube Video ID.' };
         return { provider: 'youtube', label: 'YouTube', videoID };
       }
 
-      // 2. DASH (.mpd)
-      if (pathname.endsWith('.mpd') || lower.includes('.mpd?')) {
-        return { provider: 'dash', label: 'DASH (.mpd)', video: trimmed };
+      // 2. JSON Channel API (e.g. sports.json)
+      if (pathname.endsWith('.json') || lower.includes('.json?')) {
+        return { provider: 'drm', label: 'JSON API (DRM)', api: unwrapped };
       }
 
-      // 3. HLS (.m3u8)
-      if (pathname.endsWith('.m3u8') || lower.includes('.m3u8?') || lower.includes('format=m3u8')) {
-        return { provider: 'hls', label: 'HLS (.m3u8)', video: trimmed };
+      // 3. DASH (.mpd)
+      if (pathname.endsWith('.mpd') || lower.includes('.mpd')) {
+        return { provider: 'drm', label: 'DASH / DRM (.mpd)', video: unwrapped, wrapperOrigin };
       }
 
-      // 4. Direct HTML5 Video (.mp4, .webm, .ogg, .mov, archive.org, etc.)
-      return { provider: 'html5', label: 'HTML5 Video', video: trimmed };
+      // 4. HLS (.m3u8 — including wrapped proxy URLs)
+      if (pathname.endsWith('.m3u8') || lower.includes('.m3u8') || lower.includes('format=m3u8')) {
+        return { provider: 'hls', label: 'HLS (.m3u8)', video: unwrapped, wrapperOrigin };
+      }
+
+      // 5. Direct HTML5 Video
+      return { provider: 'html5', label: 'HTML5 Video', video: unwrapped };
     }
 
-    // Live badge preview as user types or pastes
     const rawLinkInput = document.getElementById('rawLink');
     const detectedBadge = document.getElementById('detectedBadge');
 
@@ -834,9 +1000,17 @@
 
     function clearInput() {
       rawLinkInput.value = '';
+      document.getElementById('htmlSourceInput').value = '';
       document.getElementById('videoTitle').value = '';
+      document.getElementById('channelId').value = '';
       document.getElementById('skipSeconds').value = '';
+      document.getElementById('drmKey').value = '';
+      document.getElementById('customReferer').value = '';
+      document.getElementById('customCookie').value = '';
+      document.getElementById('customUa').value = '';
+      document.getElementById('useProxyToggle').checked = false;
       document.getElementById('noSkipToggle').checked = false;
+      document.getElementById('debugToggle').checked = false;
       document.getElementById('outputSection').classList.remove('visible');
       updateDetectedBadge();
       rawLinkInput.focus();
@@ -854,20 +1028,39 @@
 
       if (parsed.provider === 'youtube') {
         query.set('videoID', parsed.videoID);
+      } else if (parsed.api) {
+        query.set('api', parsed.api);
       } else {
         query.set('video', parsed.video);
       }
 
       const customTitle = document.getElementById('videoTitle').value.trim();
+      const channelId = document.getElementById('channelId').value.trim();
       const skipSecs = document.getElementById('skipSeconds').value.trim();
+      const drmKey = document.getElementById('drmKey').value.trim();
+      const customReferer = document.getElementById('customReferer').value.trim() || parsed.wrapperOrigin || '';
+      const customCookie = document.getElementById('customCookie').value.trim();
+      const customUa = document.getElementById('customUa').value.trim();
+      const useProxy = document.getElementById('useProxyToggle').checked;
       const noSkip = document.getElementById('noSkipToggle').checked;
+      const debug = document.getElementById('debugToggle').checked;
 
+      if (channelId) query.set('id', channelId);
+      if (drmKey) {
+        if (/^https?:\/\//i.test(drmKey)) query.set('licenseUrl', drmKey);
+        else query.set('key', drmKey);
+      }
+      if (useProxy) query.set('proxy', '1');
+      if (customReferer) query.set('referer', customReferer);
+      if (customCookie) query.set('cookie', customCookie);
+      if (customUa) query.set('ua', customUa);
       if (customTitle) query.set('title', customTitle);
       if (noSkip) {
         query.set('noskip', '1');
       } else if (skipSecs !== '' && Number.isFinite(parseFloat(skipSecs))) {
         query.set('skip', skipSecs);
       }
+      if (debug) query.set('debug', '1');
 
       const baseUrl = window.location.origin + '/video-player.html';
       const finalUrl = `${baseUrl}?${query.toString()}`;
@@ -883,7 +1076,7 @@
       if (!finalUrl) return;
       try {
         await navigator.clipboard.writeText(finalUrl);
-        showToast('Link copied to clipboard');
+        showToast('Link  Copied  To  Clipboard');
       } catch {
         const box = document.getElementById('finalUrl');
         box.select();
@@ -896,6 +1089,8 @@
       const finalUrl = document.getElementById('finalUrl').value;
       if (finalUrl) window.location.href = finalUrl;
     }
+    
   </script>
+
 </body>
 </html>
