@@ -1900,8 +1900,17 @@ if (isDrmOrDash && videoElement) {
 
 
 else if (provider === "hls" && videoElement) {
-  let sourceUrl = rawVideoUrl;
+  function buildHlsProxyUrl(target) {
+    const p = new URLSearchParams({ url: target });
+    if (customCookie) p.set("cookie", customCookie);
+    if (customReferer) p.set("referer", customReferer);
+    if (customUserAgent) p.set("ua", customUserAgent);
+    return `/api/proxy?${p.toString()}`;
+  }
+
+  let sourceUrl = useProxy ? buildHlsProxyUrl(rawVideoUrl) : rawVideoUrl;
   let triedInnerFallback = false;
+  let triedVercelProxy = useProxy;
   if (window.DEBUG_MODE) console.log(`[  HLS  INIT  ]   Loading  :  ${sourceUrl}`);
   
   //   Safe  Global  Fallback  To  Hide  The  Loader  if  The  Network  Fails  Early
@@ -1975,18 +1984,27 @@ else if (provider === "hls" && videoElement) {
       }
 
       if (data.fatal) {
-        //   Auto - Fallback  :  If  An  Outer  Proxy  URL  Fails  ,,   Retry  Directly  With  its  Inner  " ?url= "  Stream
+        //   Auto - Fallback  1  :  If  An  Outer  Proxy  URL  Fails  ,,   Retry  Directly  With  its  Inner  " ?url= "  Stream
         if (!triedInnerFallback && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           try {
             const innerUrl = new URL(sourceUrl).searchParams.get("url");
             if (innerUrl && /^https?:\/\//i.test(innerUrl)) {
               triedInnerFallback = true;
               sourceUrl = innerUrl.trim();
-              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Proxy  Failed  .   Retrying  Direct  :  ${sourceUrl}`);
+              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Outer  Proxy  Failed  .   Retrying  Direct  :  ${sourceUrl}`);
               hls.loadSource(sourceUrl);
               return;
             }
           } catch {}
+        }
+
+        //   Auto - Fallback  2  :  If  Direct  Stream  Hits  CORS / ISP  Block   (  HTTP 0  )  ,,   Retry  Via  Own  Vercel  Proxy
+        if (!triedVercelProxy && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          triedVercelProxy = true;
+          sourceUrl = buildHlsProxyUrl(sourceUrl);
+          if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Direct  Blocked  .   Retrying  Via  Vercel  Proxy  :  ${sourceUrl}`);
+          hls.loadSource(sourceUrl);
+          return;
         }
 
         forceHideLoader();         //   Safely  Hide  Loader  Using  The  Global  Function
