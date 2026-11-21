@@ -222,7 +222,7 @@
       fill: none;
     }
 
-    /* Rotation animations (scoped) */
+    /*   Rotation  Animations   (  Scoped  )   */
     #playerLoader .outer-dots { animation: rotate-acw 3.5s linear infinite; transform-origin: 60px 60px; }
     #playerLoader .arc2 { animation: rotate-cw 2.7s linear infinite; transform-origin: 60px 60px; }
     #playerLoader .arc3 { animation: rotate-acw 2.5s linear infinite; transform-origin: 60px 60px; }
@@ -236,47 +236,52 @@
       50% { filter: brightness(80%); transform: translateY(-3px); }
     }
 
-    /* When loader is active, hide plyr controls visually (you already have something similar) */
+    /*   When  Loader  is  Active  ,,   Hide  Plyr  Controls  Visually   (  You  Already  Have  Something  Similar  )   */
     .plyr.loading .plyr__controls { visibility: hidden !important; pointer-events: none !important; }
     .plyr.loading #customSeekControls { visibility: hidden !important; pointer-events: none !important; }
     
-    /* --- Gesture zones: reserve space for Plyr controls and sit BELOW them --- */
+    /*   <---   Gesture  Zones  :  Reserve  Space  For  Plyr  Controls  &  Sit  Below  Them   --->   */
     .gesture-zone {
       position: absolute;
       top: 0;
-      bottom: 56px;              /* reserve default space for controls (will be corrected by JS) */
+      bottom: 56px;              /*   Reserve  Default  Space  For  Controls   (  Will  Be  Corrected  By  JS  )   */
       width: 35%;
-      z-index: 2;                /* must be lower than controls' z-index so clicks reach the controls */
+      z-index: 2;                /*   Must  Be  Lower  Than  Control's  z-index  So  Clicks  Reach  The  Controls   */
       pointer-events: auto;
     }
     
-    /* left / right placement unchanged */
+    /*   Left / Right  Placement  Unchanged   */
     #gestureLeft { left: 0; right: auto; }
     #gestureRight { right: 0; left: auto; }
 
-    /* Force Plyr controls to render above gesture zones */
+    /*   Force  Plyr  Controls  To  Render  Above  Gesture  Zones   */
     .plyr__controls {
       position: relative;
-      z-index: 9999;             /* very high so it sits above gesture zones and other overlays */
+      z-index: 9999;              /*   Very  High  So  it  Sits  Above  Gesture  Zones  &  Other  Overlays   */
     }
 
-    /* Hide default volume slider in control bar */  
+    /*   Prevent  Mobile  Browser  Scroll / Gestures  From  Cancelling  Slider  Drags   */
+    .plyr__progress input[data-plyr="seek"] {
+      touch-action: none;
+    }
+
+    /*   Hide  Default  Volume  Slider  in  Control  Bar   */  
     .plyr__controls [data-plyr="volume"] {  
       display: none !important;  
     }  
-    /* Hide default rewind/fast-forward buttons */  
+    /*   Hide  Default  Rewind / Fast - Forward  Buttons   */  
     .plyr__controls [data-plyr="rewind"],  
     .plyr__controls [data-plyr="fast-forward"] {  
       display: none !important;  
     }  
     
-    /*  Custom seek controls container  */  
+    /*   Custom  Seek  Controls  Container   */  
     #customSeekControls {  
       display: flex;  
       justify-content: center;  
-      align-items: center;  
-      gap: 0;              /*  smaller gap between seek buttons */  
-      margin-left: 0;      /*  remove big extra spacing from mute/settings */  
+      align-items: center;
+      gap: 0;                    /*   Small  Gap  Between  Seek  Buttons   */  
+      margin-left: 0;            /*   Remove  Big  Extra  Spacing  From  Mute / Settings   */  
       user-select: none;  
     }  
     #customSeekControls button {  
@@ -284,8 +289,8 @@
       border: none;  
       color: white;  
       font-size: 0.8rem;  
-      margin: 0 !important;  /*  reset any auto margins */  
-      padding: 0 !important; /*  tighter inside spacing */  
+      margin: 0 !important;          /*   Reset  Any  Auto  Margins   */  
+      padding: 0 !important;         /*   Tighter  Inside  Spacing   */  
       border-radius: 3px;  
       cursor: pointer;  
       transition: background-color 0.3s;  
@@ -297,7 +302,7 @@
     #customSeekControls button:hover {  
       background: rgba(255,255,255,0.2);  
     }  
-    /* --- INTERVAL & VOLUME MENU GLASSMORPHISM --- */  
+    /*   <---   INTERVAL  &  VOLUME  MENU  GLASSMORPHISM   --->   */  
     #seekIntervalMenu,  
     #inlineVolumeSlider {
       position: absolute;
@@ -309,7 +314,7 @@
       box-shadow: 0 8px 32px rgba(60,60,60,0.18);    
       border: 1px solid rgba(200,200,200,0.14);  
       padding: 10px 10px;  
-      flex-direction: column;    /*  stack items vertically */  
+      flex-direction: column;              /*   Stack  Items  Vertically   */  
       user-select: none;  
       max-width: 180px;  
       z-index: 10100;  
@@ -1448,7 +1453,7 @@ function initAllPlayerEvents(plyrInstance) {
   let loaderFailSafeTimer = null;
 
   function showCustomLoader() {
-    if (!myLoader) return;
+    if (!myLoader || window._isUserScrubbing) return;
     //   Don't  Lock  The  Screen  in  a  Loader  if  The  Video  is  Already  At / Past  The  End
     if (player.ended || (isFinite(player.duration) && player.duration > 0 && player.currentTime >= player.duration - 0.5)) {
       hideCustomLoader();
@@ -1539,7 +1544,7 @@ function initAllPlayerEvents(plyrInstance) {
       injectCustomSeekControls();
       injectInlineVolumeSlider();
       disableGesturesWhileMenusOpen();
-      setupShakaLiveSeekBar();
+      setupUniversalSeekBar();
 
       //   Ensure  Every  Fresh  Load  Starts  at  Normal  (  1x  )  Speed
       player.speed = 1;
@@ -2222,48 +2227,181 @@ function seekBy(seconds) {
   player.media.currentTime = Math.max(0, Math.min(player.media.duration || Infinity, c + seconds));
 }
 
-window._isDraggingShakaSeek = false;
-function setupShakaLiveSeekBar() {
+window._isUserScrubbing = false;
+window._scrubPct = 0;
+window._seekLockUntil = 0;
+window._ytPendingSeek = null;
+
+function setupUniversalSeekBar() {
   const progressWrap = document.querySelector('.plyr__progress');
   const seekInput = progressWrap?.querySelector('input[data-plyr="seek"]');
-  if (!progressWrap || !seekInput || progressWrap._shakaLiveBound) return;
-  progressWrap._shakaLiveBound = true;
+  if (!progressWrap || !seekInput || progressWrap._universalSeekBound) return;
+  progressWrap._universalSeekBound = true;
 
-  const isShakaLive = () => Boolean(window.shakaPlayer && window.shakaPlayer.isLive());
+  let hasPendingCommit = false;
 
-  const startDrag = () => { if (isShakaLive()) window._isDraggingShakaSeek = true; };
-  const endDrag = () => { window._isDraggingShakaSeek = false; };
-  seekInput.addEventListener('pointerdown', startDrag, true);
-  seekInput.addEventListener('touchstart', startDrag, true);
-  window.addEventListener('pointerup', endDrag);
-  window.addEventListener('touchend', endDrag);
+  //   Compute  Target  Timestamp  &  Preview  Label  For  Any  Provider   (  Shaka  ,,   HLS  ,,   YouTube  ,,   MP4  )
+  function getTargetInfo(pct) {
+    if (!window.player) return null;
 
-  
-  function handleShakaSeek(e) {
-    if (!isShakaLive() || e.target !== seekInput) return;
-    e.stopPropagation();
+    //   1.  Shaka  Live  DASH
+    if (window.shakaPlayer && window.shakaPlayer.isLive()) {
+      const range = window.shakaPlayer.seekRange();
+      const len = range ? (range.end - range.start) : 0;
+      if (len <= 1) return null;
+      const target = Math.max(range.start + 1, Math.min(range.end - 1, range.start + (pct / 100) * len));
+      const behind = Math.max(0, range.end - target);
+      return { type: 'shaka-live', target, preview: window._isTimeInverted ? '-' + formatTime(behind) : formatTime(target - range.start), toast: behind <= 6 ? '🟢   LIVE' : `⏪  -${formatTime(behind)}` };
+    }
 
-    const range = window.shakaPlayer.seekRange();
-    const windowLen = range ? (range.end - range.start) : 0;
-    if (windowLen <= 1) return;
+    //   2.  HLS  Live
+    if (window.hls && window.hls.levels?.length) {
+      const lvl = window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel];
+      if (lvl?.details?.live && window.player.media) {
+        const vid = window.player.media;
+        const start = vid.seekable.length ? vid.seekable.start(0) : 0;
+        const end = window.hls.liveSyncPosition || (vid.seekable.length ? vid.seekable.end(vid.seekable.length - 1) : 0);
+        if (end > start + 1) {
+          const target = Math.max(start + 0.5, Math.min(end - 0.5, start + (pct / 100) * (end - start)));
+          const behind = Math.max(0, end - target);
+          return { type: 'hls-live', target, preview: window._isTimeInverted ? '-' + formatTime(behind) : formatTime(target - start), toast: behind <= 6 ? '🟢   LIVE' : `⏪  -${formatTime(behind)}` };
+        }
+      }
+    }
 
-    const pct = Math.max(0, Math.min(100, parseFloat(seekInput.value) || 0));
+    //   3.  YouTube  (  VOD  &  Live  )
+    if (window.player.provider === 'youtube') {
+      const isYtLive = Boolean(window.player.embed?.getVideoData?.()?.isLive);
+      const dur = isYtLive
+        ? (window.ytMaxSeen || window.player.duration || 0)
+        : (window.player.embed?.getDuration?.() || window.player.duration || 0);
+      if (!isFinite(dur) || dur <= 0) return null;
+      const target = Math.max(0, Math.min(dur, (pct / 100) * dur));
+      return { type: 'youtube', isYtLive, dur, target, preview: window._isTimeInverted ? '-' + formatTime(Math.max(0, dur - target)) : formatTime(target) };
+    }
+
+    //   4.  Standard  MP4  /  HLS  VOD  /  Shaka  VOD
+    const dur = window.player.duration || window.player.media?.duration || 0;
+    if (!isFinite(dur) || dur <= 0) return null;
+    const target = Math.max(0, Math.min(dur, (pct / 100) * dur));
+    return { type: 'vod', dur, target, preview: window._isTimeInverted ? '-' + formatTime(Math.max(0, dur - target)) : formatTime(target) };
+  }
+
+  //   Visual  Preview  Only  While  Dragging   (  Zero  Network / Seek  Calls  )
+  function previewScrub(pct) {
+    window._scrubPct = pct;
+    seekInput.value = pct;
+    seekInput.style.setProperty('--value', `${pct}%`);
+    const info = getTargetInfo(pct);
+    if (!info) return;
+    const curEl = document.querySelector('.plyr__time--current');
+    if (curEl) curEl.textContent = info.preview;
+  }
+
+  //   Commit  The  Actual  Seek  Once  When  Finger / Mouse  is  Released
+  function commitScrub(pct) {
+    window._isUserScrubbing = false;
+    hasPendingCommit = false;
+    window._scrubPct = pct;
+    window._seekLockUntil = Date.now() + 500;
+    seekInput.value = pct;
     seekInput.style.setProperty('--value', `${pct}%`);
 
-    const targetTime = range.start + (pct / 100) * windowLen;
-    if (window.player?.media) {
-      window.player.media.currentTime = Math.max(range.start + 1, Math.min(range.end - 1, targetTime));
-      const behind = Math.max(0, range.end - targetTime);
-      showToast(behind <= 6 ? '🟢   LIVE'  :  `⏪  -${formatTime(behind)}`);
+    const info = getTargetInfo(pct);
+    if (!info) return;
+
+    if (info.type === 'shaka-live' || info.type === 'hls-live') {
+      if (window.player.media) window.player.media.currentTime = info.target;
+      if (info.toast) showToast(info.toast);
+      return;
+    }
+
+    if (info.type === 'youtube') {
+      const ytState = window.player.embed?.getPlayerState?.();
+      //   Guard  Against  YouTube  Resetting  To  0  When  Seeking  Before  First  Play
+      if ((ytState === -1 || ytState === 5) && info.target > 1) {
+        window._ytPendingSeek = info.target;
+      } else {
+        window._ytPendingSeek = null;
+      }
+      if (typeof window.player.embed?.seekTo === 'function') {
+        window.player.embed.seekTo(info.target, true);
+      } else {
+        window.player.currentTime = info.target;
+      }
+      return;
+    }
+
+    //   Standard  HTML5  MP4  /  HLS  VOD  /  Shaka  VOD
+    const media = window.player.media;
+    if (media) {
+      if (media.readyState >= 1) {
+        media.currentTime = info.target;
+      } else {
+        media.addEventListener('loadedmetadata', () => {
+          media.currentTime = info.target;
+        }, { once: true });
+      }
     }
   }
 
-  //   Capture  On  Parent  Wrapper  So  it  Runs  Before  Plyr's  Own  Infinity  Seek  Handler
-  progressWrap.addEventListener('input', handleShakaSeek, true);
-  progressWrap.addEventListener('change', (e) => {
-    handleShakaSeek(e);
-    window._isDraggingShakaSeek = false;
+  const startDrag = () => {
+    window._isUserScrubbing = true;
+    hasPendingCommit = true;
+    window._scrubPct = parseFloat(seekInput.value) || 0;
+  };
+
+  const finishDragFallback = () => {
+    if (!window._isUserScrubbing) return;
+    setTimeout(() => {
+      if (hasPendingCommit) commitScrub(window._scrubPct);
+      else window._isUserScrubbing = false;
+    }, 0);
+  };
+
+  seekInput.addEventListener('pointerdown', startDrag, true);
+  seekInput.addEventListener('touchstart', startDrag, true);
+  window.addEventListener('pointerup', finishDragFallback);
+  window.addEventListener('touchend', finishDragFallback);
+  window.addEventListener('pointercancel', finishDragFallback);
+
+  //   Intercept  Every  Input  While  Dragging  So  Plyr  Never  Triggers  Mid - Drag  Seeks  Or  Loader
+  progressWrap.addEventListener('input', (e) => {
+    if (e.target !== seekInput) return;
+    e.stopPropagation();
+    const pct = Math.max(0, Math.min(100, parseFloat(seekInput.value) || 0));
+    previewScrub(pct);
   }, true);
+
+  //   Commit  On  Release   (  Handles  Both  Drag - Release  &  Single  Taps  On  The  Bar  )
+  progressWrap.addEventListener('change', (e) => {
+    if (e.target !== seekInput) return;
+    e.stopPropagation();
+    const pct = Math.max(0, Math.min(100, parseFloat(seekInput.value) || 0));
+    commitScrub(pct);
+  }, true);
+
+  //   Stop  Plyr's  Timeupdate  From  Yanking  The  Thumb  Back  While  Dragging  Or  Right  After  Release
+  window.player.on('timeupdate', () => {
+    if (window._isUserScrubbing || Date.now() < window._seekLockUntil) {
+      requestAnimationFrame(() => {
+        seekInput.value = window._scrubPct;
+        seekInput.style.setProperty('--value', `${window._scrubPct}%`);
+      });
+    }
+  });
+
+  //   Re - Apply  YouTube  Pending  Seek  if  An  Unstarted  Video  Tries  To  Reset  To  0  When  Play  Begins
+  window.player.on('playing', () => {
+    if (window._ytPendingSeek !== null && window.player.provider === 'youtube') {
+      const target = window._ytPendingSeek;
+      window._ytPendingSeek = null;
+      const actual = window.player.embed?.getCurrentTime?.() || 0;
+      if (actual < 1 && target > 1) {
+        window.player.embed?.seekTo?.(target, true);
+      }
+    }
+  });
 }
 
 
@@ -3122,13 +3260,13 @@ window.startSessionTracking = function() {
 
     //   🚀  SHAKA  LIVE  DVR  SLIDER  SYNC
     const isShakaLive = Boolean(window.shakaPlayer && window.shakaPlayer.isLive());
-    if (isShakaLive && !window._isDraggingShakaSeek) {
+    if (isShakaLive && !window._isUserScrubbing && Date.now() >= window._seekLockUntil) {
         const range = window.shakaPlayer.seekRange();
         const seekInput = document.querySelector('.plyr__progress input[data-plyr="seek"]');
         if (seekInput && range && (range.end - range.start) > 1) {
             const pct = Math.max(0, Math.min(100, ((cur - range.start) / (range.end - range.start)) * 100));
             requestAnimationFrame(() => {
-                if (window._isDraggingShakaSeek) return;
+                if (window._isUserScrubbing || Date.now() < window._seekLockUntil) return;
                 seekInput.value = pct;
                 seekInput.style.setProperty('--value', `${pct}%`);
             });
@@ -3143,7 +3281,7 @@ window.startSessionTracking = function() {
     const shakaPosInWindow = shakaRange ? Math.max(0, Math.min(shakaWindowLen, cur - shakaRange.start)) : 0;
 
     const curEl = document.querySelector('.plyr__time--current');
-    if (curEl) {
+    if (curEl && !window._isUserScrubbing && Date.now() >= window._seekLockUntil) {
         if (isShakaLive) {
             curEl.textContent = window._isTimeInverted
                 ? '-' + formatTime(Math.floor(ytDrift))
