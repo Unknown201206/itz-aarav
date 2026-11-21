@@ -965,6 +965,46 @@
       }
     }
 
+    /*   =============================================================================================================
+                   INDIVIDUAL  HOVER  +  SINGLE - CLICK   (  LIFT - 1  )  +  DOUBLE - CLICK   (  LIFT - 2  )
+         =============================================================================================================   */
+    .wave-circle,
+    .session-col {
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+    }
+
+    /*   Individual  Mouse  Hover   (  Stacks  Alongside  Parent  Card's  Hover  )   */
+    .wave-circle:hover {
+      transform: translateY(-4px) scale(1.06);
+      box-shadow: var(--neo-shadow-out);
+    }
+    .session-col:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: var(--neo-shadow-sm);
+    }
+
+    /*   Stage - 1  :  Single  Click  /  Tap  Lift   */
+    .wave-circle.lift-1 {
+      transform: translateY(-6px) scale(1.08);
+      box-shadow: var(--neo-shadow-out);
+    }
+    .session-col.lift-1 {
+      transform: translateY(-5px) scale(1.03);
+      box-shadow: var(--neo-shadow-out);          /*   Pops  Out  From  Recessed  Neomorphic  Slot   */
+    }
+
+    /*   Stage - 2  :  Double  Click  /  Double  Tap  —  Further  Lift   */
+    .wave-circle.lift-2 {
+      transform: translateY(-11px) scale(1.16);
+      box-shadow: var(--neo-shadow-hover);
+    }
+    .session-col.lift-2 {
+      transform: translateY(-9px) scale(1.07);
+      box-shadow: var(--neo-shadow-hover);
+    }
+
   </style>
 
   <!--   ✅  Firebase SDKs  ( App + Auth + Firestore )   -->
@@ -2353,7 +2393,8 @@ function closeAllMenus(exceptId) {
   //   Call  closeAllMenus('seekIntervalMenu')  Before Showing Interval Menu
   //   Call  closeAllMenus('inlineVolumeSlider')  Before Showing Volume Slider
 
-//   ==========  CUSTOM SEEK BUTTONS  ( Keep Only  Right - Side )  ==========
+
+//   ==========   CUSTOM  SEEK  BUTTONS   (  Keep  Only  Right - Side  )   ==========
 
 function injectCustomSeekControls() {
   const controls = document.querySelector('.plyr__controls');
@@ -2363,7 +2404,7 @@ function injectCustomSeekControls() {
   const container = document.createElement('div');
   container.id = 'customSeekControls';
 
-  //   Standard Plyr SVG For  Backward / Forward
+  //   Standard  Plyr  SVG  For  Backward / Forward
   const svgRewind = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M6.5 10.76V16L1 10L6.5 4V7.1C12.5 7.48 17 9.28 19 13.74C17.18 12.04 12.5 11.16 7 11.15C6.83 11.15 6.66 11.14 6.5 11.13V10.76Z" fill="#fff"/></svg>`;
   const svgForward = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13.5 10.76V16L19 10L13.5 4V7.1C7.5 7.48 3 9.28 1 13.74C2.82 12.04 7.5 11.16 13 11.15C13.17 11.15 13.34 11.14 13.5 11.13V10.76Z" fill="#fff"/></svg>`;
 
@@ -2381,13 +2422,13 @@ function injectCustomSeekControls() {
     return btn;
   }
 
-  // Seek interval Middle Button
+  //   Seek  Interval  Middle  Button
   const intervalBtn = document.createElement('button');
   intervalBtn.type = 'button';
   intervalBtn.className = 'plyr__control plyr__control--seek';
   intervalBtn.textContent = '10s';
   intervalBtn.title = 'Select seek interval';
-  intervalBtn.style.background = 'rgba(30,30,30,0.5)';    //   ✅ Same as back/forward buttons by default
+  intervalBtn.style.background = 'rgba(30,30,30,0.5)';          //   ✅  Same  as  Back / Forward  Buttons  By  Default
   intervalBtn.style.color = '#fff';
   intervalBtn.style.fontWeight = 'bold';
   intervalBtn.style.borderRadius = '4px';
@@ -2395,7 +2436,7 @@ function injectCustomSeekControls() {
   intervalBtn.style.minWidth = '31px';
   intervalBtn.style.minHeight = '31px';
 
-  // Seek interval menu
+  //   Seek  Interval  Menu
   const seekIntervalMenu = document.createElement('div');
   seekIntervalMenu.id = 'seekIntervalMenu';
   seekIntervalMenu.style.display = 'none';
@@ -2412,7 +2453,7 @@ function injectCustomSeekControls() {
     btn.style.borderRadius = '5px';
     btn.style.minWidth = '100px';
 
-    // Add "selected" class for initial selection
+    //   Add  " selected "  Class  For  Initial  Selection
     if (interval === selectedInterval) {
       btn.classList.add('selected');
     }
@@ -2420,9 +2461,9 @@ function injectCustomSeekControls() {
     btn.onclick = () => {
       selectedInterval = interval;
       updateIntervalBtnLabel();
-      // Remove 'selected' class from all buttons
+      //   Remove  " selected "  Class  From  All  Buttons
       Array.from(seekIntervalMenu.children).forEach(b => b.classList.remove('selected'));
-      // Add 'selected' class to clicked button
+      //   Add  " selected "  Class  To  Clicked  Button
       btn.classList.add('selected');
       seekIntervalMenu.style.display = 'none';
     }
@@ -2433,22 +2474,22 @@ function injectCustomSeekControls() {
     e.stopPropagation();
     const isOpen = seekIntervalMenu.style.display === "flex";
 
-    //   👇🏻 Hide other menus before showing interval menu
+    //   👇🏻  Hide  Other  Menus  Before  Showing  Interval  Menu
     closeAllMenus('seekIntervalMenu');
 
-    //   🎊 Toggle visibility (no need for dynamic positioning)
+    //   🎊  Toggle  Visibility   (  No  Need  For  Dynamic  positioning  )
     if (isOpen) {
       instantHideMenu(seekIntervalMenu);
     } else {
-      positionSeekMenu();   // compute left/bottom before making menu visible
+      positionSeekMenu();         //   Compute  Left / Bottom  Before  Making  Menu  Visible
       seekIntervalMenu.style.display = 'flex';
       setTimeout(() => {
         seekIntervalMenu.classList.add('menu-show');
-        setIntervalBtnHighlight(true);    //   ✅ Add highlight when opening
+        setIntervalBtnHighlight(true);          //   ✅  Add  Highlight  When  Opening
       }, 10);
     }
 
-    //   ✅ Lock gesture controls while menu is open
+    //   ✅  Lock  Gesture  Controls  While  Menu  is  Open
     const gestureLeft = document.getElementById('gestureLeft');
     const gestureRight = document.getElementById('gestureRight');
     if (seekIntervalMenu.style.display === "flex") {
@@ -2460,7 +2501,7 @@ function injectCustomSeekControls() {
     }
   };
   
-  // Seek buttons
+  //   Seek  Buttons
   const btnBack = createSeekBtn(svgRewind, "Seek backward");
   const btnForward = createSeekBtn(svgForward, "Seek forward");
   btnBack.onclick = () => { seekBy(-selectedInterval); showToast(`⏪ -${selectedInterval}s`); vibrate(); }
@@ -2469,12 +2510,12 @@ function injectCustomSeekControls() {
   container.appendChild(btnBack);
   container.appendChild(intervalBtn);
   container.appendChild(btnForward);
-  // append the interval menu inside the controls so absolute positioning is relative to the controls
+  //   Append  The  Interval  Menu  Inside  The  Controls  So  Absolute  Positioning  is  Relative  To  The  Controls
   document.body.appendChild(seekIntervalMenu);
 
-  /* ---------- position helper: align menu above the interval button ---------- */
+  /*   <----------  Position  Helper  :  Align  Menu  Above  The  Interval  Button   ---------->   */
   function positionSeekMenu() {
-  // show briefly for measurement, but keep hidden to avoid flicker
+  //   show  Briefly  For  Measurement  ,,   But  Keep  Hidden  To  Avoid  Flicker
   seekIntervalMenu.style.display = 'block';
   seekIntervalMenu.style.visibility = 'hidden';
   seekIntervalMenu.classList.remove('menu-show');
@@ -2484,37 +2525,37 @@ function injectCustomSeekControls() {
     const menuWidth = seekIntervalMenu.offsetWidth;
     const menuHeight = seekIntervalMenu.offsetHeight;
 
-    // horizontal nudge: tweak per device size (recalculated each time)
-    // --- horizontal nudge (keep this, like in your current code) ---  
-    const horizontalNudge = 33; // tweak to shift left/right  
-    const verticalOffset = 15; // gap between button and menu (tweak to taste)
+    //   Horizontal  Nudge  :  Tweak  Per  Device  Size   (  Recalculated  Each  Time  )
+    //   <---  Horizontal  Nudge   (  Keep  This  ,,   Like  in  Your  Current  Code  )  --->
+    const horizontalNudge = 33;         //   Tweak  To  Shift  Left / Right  
+    const verticalOffset = 15;          //   Gap  Between  Button  &  Menu   (  Tweak  To  Taste  )
 
-    // If menu is appended to body -> compute viewport coordinates
+    // If  Menu  is  Appended  To  Body   -->   Compute  Viewport  Coordinates
     if (seekIntervalMenu.parentElement === document.body) {
       let left = btnRect.left + window.scrollX + (btnRect.width / 2) - (menuWidth / 2) - horizontalNudge;
-      // clamp to viewport
+      //   Clamp  To  Viewport
       left = Math.max(6, Math.min(left, window.innerWidth - menuWidth - 6));
 
-      // place above the button; if not enough space, place below
+      //   Place  Above  The  Button  ;   if  Not  Enough  Space  ,,   Place  Below
       let top = btnRect.top + window.scrollY - menuHeight - verticalOffset;
       if (top < 6) top = btnRect.bottom + window.scrollY + verticalOffset;
 
       seekIntervalMenu.style.position = 'absolute';
       seekIntervalMenu.style.left = `${Math.round(left)}px`;
       seekIntervalMenu.style.top = `${Math.round(top)}px`;
-      // ensure we clear bottom if previously used
+      //   Ensure  We  Clear  Bottom  if  Previously  Used
       seekIntervalMenu.style.bottom = '';
     } else {
-      // Menu is inside a parent (e.g. controls) — compute coords relative to that parent
+      //   Menu  is  Inside  a  Parent   (  E.g. -  Controls  )  —  Compute  Coords  Relative  To  That  Parent
       const parentRect = seekIntervalMenu.parentElement.getBoundingClientRect();
 
-      // left relative to parent
+      //   Left  Relative  To  Parent
       let left = (btnRect.left - parentRect.left) + (btnRect.width / 2) - (menuWidth / 2) - horizontalNudge;
 
-      //   Clamp Inside Parent
+      //   Clamp  Inside  Parent
       left = Math.max(6, Math.min(left, Math.max(6, parentRect.width - menuWidth - 6)));
 
-      //   Top Relative To Parent  :  Place Above The Button .  If Not Enough Space ,  Place Below .
+      //   Top  Relative  To  Parent  :  Place  Above  The  Button  .   If  Not  Enough  Space  ,,   Place  Below  .
       let top = (btnRect.top - parentRect.top) - menuHeight - verticalOffset;
       if (top < 6) top = (btnRect.bottom - parentRect.top) + verticalOffset;
 
@@ -2524,12 +2565,12 @@ function injectCustomSeekControls() {
       seekIntervalMenu.style.bottom = '';
     }
 
-    //   Restore Visibility  ( Menu - Show is Toggled Elsewhere To Animate )
+    //   Restore  Visibility   (  Menu - Show  is  Toggled  Elsewhere  To  Animate  )
     seekIntervalMenu.style.visibility = '';
   });
   }
 
-  //   Re - Position  While Open If The Window is Resized
+  //   Re - Position  While  Open  if  The  Window  is  Resized
   ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(evt => {
     window.addEventListener(evt, () => {
       if (seekIntervalMenu.style.display !== 'none') {
@@ -2538,18 +2579,18 @@ function injectCustomSeekControls() {
     });
   });
 
-  //   Place Right After Mute Button For Consistent Layout
+  //   Place  Right  After  Mute  Button  For  Consistent  Layout
   const muteBtn = controls.querySelector('[data-plyr="mute"]');
   muteBtn?.insertAdjacentElement('afterend', container);
 
-  //   Hide Interval Menu On Outside Click
+  //   Hide  Interval  Menu  On  Outside  Click
   document.addEventListener('click', function(ev){
     if (!seekIntervalMenu.contains(ev.target) &&
         ev.target !== intervalBtn
     ) {
       instantHideMenu(seekIntervalMenu);
-      setIntervalBtnHighlight(false);            //   ✅  Reset Highlight On Outside Click
-      //   Restore Gesture Zones When Menu Closes
+      setIntervalBtnHighlight(false);            //   ✅  Reset  Highlight  On  Outside  Click
+      //   Restore  Gesture  Zones  When  Menu  Closes
       const gestureLeft = document.getElementById('gestureLeft');
       const gestureRight = document.getElementById('gestureRight');
       if (gestureLeft && gestureRight) {
@@ -2559,15 +2600,15 @@ function injectCustomSeekControls() {
     }
   });
 
-  //   Handle Fullscreen Toggling: Move Menu To Best Parent & Reposition
+  //   Handle  Fullscreen  Toggling  :  Move  Menu  To  Best  Parent  &  Reposition
   function handleFullscreenMove() {
     const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (isFullscreen) {
-      //   Append To The Plyr Root Wrapper  ( Fullscreen Element ) ,  Not Controls
+      //   Append  To  The  Plyr  Root  Wrapper   (  Fullscreen  Element  )  ,,   Not  Controls
       const plyrRoot = controls.closest('.plyr');
       plyrRoot.appendChild(seekIntervalMenu);
     } else {
-      //   Back To Body So It Can Overflow Outside Player in Normal Mode
+      //   Back  To  Body  So  it  Can  Overflow  Outside  Player  in  Normal  Mode
       document.body.appendChild(seekIntervalMenu);
     }
 
@@ -2576,10 +2617,27 @@ function injectCustomSeekControls() {
     }
   }
 
-  //   Listen For  Full - Screen  Changes  ( Standard + Webkit )
+  //   Listen  For  Full - Screen  Changes   (  Standard  +  Webkit  )
   document.addEventListener('fullscreenchange', handleFullscreenMove);
   document.addEventListener('webkitfullscreenchange', handleFullscreenMove);
+
+  //   Auto - Hide  Seek  Interval  Menu  Whenever  Plyr  Hides  The  Control  Bar
+  if (window.player) {
+    window.player.on('controlshidden', () => {
+      if (seekIntervalMenu.style.display !== 'none') {
+        instantHideMenu(seekIntervalMenu);
+        setIntervalBtnHighlight(false);
+        const gestureLeft = document.getElementById('gestureLeft');
+        const gestureRight = document.getElementById('gestureRight');
+        if (gestureLeft && gestureRight) {
+          gestureLeft.style.pointerEvents = "auto";
+          gestureRight.style.pointerEvents = "auto";
+        }
+      }
+    });
+  }
 }
+
 
 //   ==========  INLINE VOLUME SLIDER  ==========
 
@@ -2605,14 +2663,14 @@ function injectInlineVolumeSlider() {
   volContainer.appendChild(volumeSlider);
   muteBtn.insertAdjacentElement('afterend', volContainer);
 
-  //   Show Slider When  Mute / Volume  Button is Clicked ,  Set Volume To  100 %
+  //   Show  Slider  When  Mute / Volume  Button  is  Clicked  ,,   Set  Volume  To  100 %
   muteBtn.addEventListener('click', (e) => {
     e.preventDefault();
 
     const isOpen = volContainer.style.display === 'flex' && volContainer.classList.contains('menu-show');
 
     if (isOpen) {
-      //   ✅  If Open ,  Hide Instantly & Clear Timer
+      //   ✅  If  Open  ,,   Hide  Instantly  &  Clear  Timer
       instantHideMenu(volContainer);
       muteBtn.style.background = '';
       if (volumeAutoHideTimeout) {
@@ -2620,7 +2678,7 @@ function injectInlineVolumeSlider() {
         volumeAutoHideTimeout = null;
       }
     } else {
-      //   ✅  Show Volume Slider
+      //   ✅  Show  Volume  Slider
       closeAllMenus('inlineVolumeSlider');
       player.muted = false;
       player.volume = 1;
@@ -3377,8 +3435,43 @@ function createWaveCircle(
 }
   
 //   Init After DOM
-window.watchedWave = createWaveCircle("watchedWave", "#6faeff", "#1d5ee9", "#9c0892");     //   ✅ Pinkish Ring
-window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "#874609");     //    ✅ Orange Ring
+window.watchedWave = createWaveCircle("watchedWave", "#6faeff", "#1d5ee9", "#9c0892");           //   ✅  Pinkish  Ring
+window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "#874609");       //   ✅  Orange  Ring
+
+
+//   Individual  Click   (  Stage - 1  )   &   Double - Click  (  Stage - 2  )   Lift  For  Wave  Circles  &  Session  Inner  Cards
+(function () {
+  const liftItems = document.querySelectorAll('.wave-circle, .session-col');
+
+  liftItems.forEach(el => {
+    let lastTap = 0;
+
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      const isDoubleTap = (now - lastTap) < 350;
+      lastTap = now;
+
+      if (isDoubleTap) {
+        //   Double - Click  /  Double - Tap   -->   Further  Lift   (  Stage - 2  )
+        el.classList.remove('lift-1');
+        el.classList.add('lift-2');
+      } else if (el.classList.contains('lift-2') || el.classList.contains('lift-1')) {
+        //   Single  Click  Again  After  Pausing   -->   Lower  Back  To  Normal
+        el.classList.remove('lift-1', 'lift-2');
+      } else {
+        //   Single  Click   -->   Stage - 1  Lift
+        el.classList.add('lift-1');
+      }
+    });
+  });
+
+  //   Tap  Anywhere  Outside   -->   Smoothly  Lower  All  Lifted  Elements  Back  Down
+  document.addEventListener('click', () => {
+    liftItems.forEach(el => el.classList.remove('lift-1', 'lift-2'));
+  });
+})();
+
   
 </script>
 </body>
