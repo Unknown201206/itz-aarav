@@ -1405,7 +1405,9 @@ if (video) {
   } catch {
     rawVideoUrl = video.trim();
   }
-  rawVideoUrl = unwrapPlayerWrapperUrl(rawVideoUrl);
+  if (provider !== "iframe") {
+    rawVideoUrl = unwrapPlayerWrapperUrl(rawVideoUrl);
+  }
 }
 const safeVideo = escapeHTML(rawVideoUrl ? encodeURI(rawVideoUrl).replace(/%25/g, '%') : "");
 
@@ -1420,8 +1422,19 @@ if ((!provider || provider === "html5") && rawVideoUrl) {
 }
 
 
-//   Main Player Load & Gesture Zone Injection (using insertAdjacentHTML so #playerLoader is not destroyed)
-if (provider === "youtube" && safeVideoID) {
+//   Main  Player  Load  &  Gesture  Zone  Injection   (  Using  insertAdjacentHTML  So  #playerLoader  is  Not  Destroyed  )
+if (provider === "iframe" && rawVideoUrl) {
+  wrapper.insertAdjacentHTML('beforeend', `
+    <div class="relative aspect-video w-full h-full">
+      <iframe
+        src="${escapeHTML(rawVideoUrl)}"
+        class="w-full h-full border-0"
+        allowfullscreen
+        allow="encrypted-media; fullscreen; autoplay"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+      ></iframe>
+    </div>`);
+} else if (provider === "youtube" && safeVideoID) {
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
       <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="${safeVideoID}"></div>
@@ -1651,8 +1664,8 @@ function logShakaDetail(err, label = "SHAKA ERROR") {
   console.error(`[${label}] Code: ${code} (Cat: ${category}) ${data ? "-> " + data : err.message || ""}`);
 }
 
-const isDrmOrDash = (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys || Boolean(customLicenseUrl) || Boolean(apiUrl));
-
+const isDrmOrDash = provider !== "iframe" && (provider === "drm" || provider === "dash" || rawVideoUrl.includes(".mpd") || hasDrmKeys || Boolean(customLicenseUrl) || Boolean(apiUrl));
+  
 if (isDrmOrDash && videoElement) {
   function forceHideLoader() {
     const loader = document.getElementById('playerLoader');
@@ -2034,33 +2047,33 @@ else if (provider === "hls" && videoElement) {
 
     hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
       
-      //   👇🏻  SMART AUTOPLAY  :  Attempt To Play Normally With Sound First  ( Uses Google's MEI Trust Score )
+      //   👇🏻  SMART  AUTOPLAY  :  Attempt  To  Play  Normally  With  Sound  First   (  Uses  Google's  MEI  Trust  Score  )
       videoElement.muted = false;
       videoElement.play().then(() => {
-          //   Browser Allowed Unmuted Autoplay !!  Do Nothing Else .
+          //   Browser  Allowed  Unmuted  Autoplay  !!   Do  Nothing  Else  .
       }).catch((err) => {
-          //   Browser Blocked Unmuted Autoplay .  Fall Back To The Muted Exploit .
+          //   Browser  Blocked  Unmuted  Autoplay  .   Fall  Back  To  The  Muted  Exploit  .
           videoElement.muted = true;
           videoElement.play().then(() => {
               showToast("Tap  Anywhere  To  Unmute   🪄  .....");
               
-              //   The Moment The User Touches The Screen ,  Just Unmute  ( No 100% Volume Jump )
+              //   The  Moment  The  User  Touches  The  Screen  ,,   Just  Unmute   (  No  100%  Volume  Jump  )
               const unmuteHandler = () => {
                   videoElement.muted = false;
                   document.removeEventListener('touchstart', unmuteHandler);
                   document.removeEventListener('click', unmuteHandler);
               };
-              //   Use  { once: true }  So The Listener Automatically Kills Itself After  1 Tap
+              //   Use  { once: true }  So  The  Listener  Automatically  Kills  itself  After  1  Tap
               document.addEventListener('touchstart', unmuteHandler, { once: true });
               document.addEventListener('click', unmuteHandler, { once: true });
           }).catch(e => {
-              //   Silently Ignore If Browser is Excessively Strict
+              //   Silently  Ignore  if  Browser  is  Excessively  Strict
           });
       });
 
       const availableQualities = hls.levels.map((l) => l.height);
       const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
-      uniqueQualities.unshift(0);       //   0 Acts as  " Auto "
+      uniqueQualities.unshift(0);         //   0  Acts  as  " Auto "
       
       plyrConfig.quality = {
         default: 0,
@@ -2083,8 +2096,11 @@ else if (provider === "hls" && videoElement) {
     const plyrInstance = new Plyr('#player', plyrConfig);
     initAllPlayerEvents(plyrInstance);
   }
+} else if (provider === "iframe") {
+  const loader = document.getElementById('playerLoader');
+  if (loader) loader.classList.remove('show');
 } else {
-  //   Immediate Load For Youtube & HTML5
+  //   Immediate  Load  For  Youtube  &  HTML5
   const plyrInstance = new Plyr('#player', plyrConfig);
   initAllPlayerEvents(plyrInstance);
   
