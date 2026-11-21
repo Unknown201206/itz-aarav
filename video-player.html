@@ -789,7 +789,7 @@
       flex-wrap: wrap;
       width: 100%;
       max-width: 100%;
-      margin: 0 auto 25px auto !important;
+      margin: 0 auto 29px auto !important;
     }
     .info-card {
       background: var(--glass-bg);
@@ -1147,7 +1147,7 @@
   
 
 <!--   Current  Session  Card   -->
-<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mt-[6px] mb-[25px]">
+<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mb-[25px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
     JS expects the elements with IDs:
@@ -1405,29 +1405,54 @@ function initAllPlayerEvents(plyrInstance) {
   syncGestureZoneBottomToControls();
 
   const myLoader = document.getElementById('playerLoader');
-  function showCustomLoader() { if(myLoader) myLoader.classList.add('show'); }
-  function hideCustomLoader() { if(myLoader) myLoader.classList.remove('show'); }
+  let loaderFailSafeTimer = null;
+
+  function showCustomLoader() {
+    if (!myLoader) return;
+    //   Don't  Lock  The  Screen  in  a  Loader  if  The  Video  is  Already  At / Past  The  End
+    if (player.ended || (isFinite(player.duration) && player.duration > 0 && player.currentTime >= player.duration - 0.5)) {
+      hideCustomLoader();
+      return;
+    }
+    myLoader.classList.add('show');
+    //   Safety  Net  :  if  a  Seek  On  a  Paused / Ended  Video  Never  Emits  Seeked / Playing  ,,   Auto - Clear  After  3.5s
+    clearTimeout(loaderFailSafeTimer);
+    loaderFailSafeTimer = setTimeout(() => {
+      if (player.paused || player.ended) hideCustomLoader();
+    }, 3500);
+  }
+
+  function hideCustomLoader() {
+    clearTimeout(loaderFailSafeTimer);
+    if (myLoader) myLoader.classList.remove('show');
+  }
 
   player.on('loadstart', showCustomLoader);
   player.on('waiting', showCustomLoader);
-  player.on('seeking', showCustomLoader);
+  player.on('seeking', () => {
+    //   Only  Show  Loader  On  Seek  if  Not  Already  At  The  Very  End
+    if (!player.ended && !(isFinite(player.duration) && player.duration > 0 && player.currentTime >= player.duration - 0.5)) {
+      showCustomLoader();
+    } else {
+      hideCustomLoader();
+    }
+  });
   
-  //   👇🏻  THE  FIX  :  Hide  The  Loader  When  The  UI  is  Built  So  You  Can  Click  Play
+  //   👇🏻  THE  FIX  :  Hide  The  Loader  On  Every  Terminal / Ready  State
   player.on('ready', hideCustomLoader);
   player.on('canplay', hideCustomLoader);
   player.on('playing', hideCustomLoader);
   player.on('seeked', hideCustomLoader);
+  player.on('ended', hideCustomLoader);
   player.on('error', hideCustomLoader);
   player.on('loadeddata', hideCustomLoader);
 
-  //   👇🏻  YOUTUBE  LOADER  FIX  :  Map  YouTube's  Internal  States  Directly  To  Our  Custom  Loader
+  //   👇🏻  YOUTUBE  LOADER  FIX  :  Handle  ALL  YouTube  States   (  Including  0 = Ended  ,,   -1  =  Unstarted  ,,   5  =  Cued  )
   player.on('statechange', (event) => {
-    //   YouTube  State - 3  =  Buffering   (  Force  Our  Custom  Loader  Over  Google's  )
-    if (event.detail.code === 3) {
+    const code = event.detail.code;
+    if (code === 3) {
       showCustomLoader();
-    } 
-    //   YouTube  State - 1  =  Playing  ,,   2  =  Paused   (  Hide  Our  Loader  )
-    else if (event.detail.code === 1 || event.detail.code === 2) {
+    } else if (code === 0 || code === 1 || code === 2 || code === 5 || code === -1) {
       hideCustomLoader();
     }
   });
