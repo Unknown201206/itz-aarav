@@ -664,26 +664,26 @@
       border-radius: 0 !important;
     }
 
-    /* =========================================================================
-       CURRENT SESSION CARD (GLASS + NEOMORPHISM)
-       ========================================================================= */
+    /*   =========================================================================
+                   CURRENT  SESSION  CARD   (  GLASS  +  NEOMORPHISM  )
+         =========================================================================   */
     .session-card {
       --session-padding: 18px 16px 20px 16px;
       --session-gap: 24px;
       --session-dot-size: 9px;
-      --session-title-size: 15px;
-      --session-time-size: 12px;
-      --session-label-size: 11.5px;
+      --session-title-size: 14px;
+      --session-time-size: 10px;          /*   Timer  Size   */
+      --session-label-size: 10px;         /*   " Watched  Video "  &  " Total  Duration "  Size   */
       --session-title-weight: 800;
-      --session-time-weight: 700;
-      --session-label-weight: 650;
+      --session-time-weight: 700;         /*   Timer  Weight   */
+      --session-label-weight: 700;        /*   Label  Weight   */
       --session-dot-color: #ef4444;
 
       background: var(--glass-bg);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       border: 1px solid var(--glass-border);
-      border-radius: 15px;
+      border-radius: 12px;
       padding: var(--session-padding);
       box-shadow: var(--neo-shadow-out), var(--glass-inner);
       cursor: pointer;
@@ -698,10 +698,11 @@
       box-shadow: var(--neo-shadow-in);
       transform: translateY(-2px) scale(0.99);
     }
+    
     .session-header {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 15px;                           /*   <--   Change  This  px  Value  To  Increase / Decrease  Dot - To - Text  Gap   */
       margin-bottom: var(--session-gap);
     }
     .session-dot {
@@ -711,6 +712,7 @@
       background-color: var(--session-dot-color);
       flex-shrink: 0;
       display: inline-block;
+      transform: translateY(-1px);         /*   <--   Optically  Centers  Dot  With  Capital  " C "   (  Tweak  -0.5px  To  -1.5px  if  Needed  )   */
       box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
     }
     .session-title {
@@ -718,7 +720,10 @@
       font-weight: var(--session-title-weight);
       color: var(--text-primary);
       line-height: 1;
+      display: inline-flex;
+      align-items: center;
     }
+    
     .session-row {
       display: flex;
       gap: 14px;
@@ -731,9 +736,9 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      padding: 12px 10px;
-      border-radius: 16px;
+      gap: 3px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
+      padding: 10px 10px;          /*   8px  =  Top  &  Bottom  Padding  ,,   10px  =  Left  &  Right  Padding   */
+      border-radius: 12px;
       background: var(--neo-surface);
       box-shadow: var(--neo-shadow-in);
       border: 1px solid var(--glass-border);
@@ -741,7 +746,10 @@
     .session-time {
       font-size: var(--session-time-size);
       font-weight: var(--session-time-weight);
-      color: var(--text-primary);
+      color: #0f172a;                        /*   Light  Mode  Timer  Color   */
+      html.dark .session-time {
+        color: var(--text-primary);          /*   Dark  Mode  Timer  Color   */
+      }
       letter-spacing: 0.4px;
       font-variant-numeric: tabular-nums;
     }
@@ -756,16 +764,16 @@
         --session-padding: 22px 24px 24px 24px;
         --session-gap: 24px;
         --session-dot-size: 10px;
-        --session-title-size: 18px;
-        --session-time-size: 16px;
-        --session-label-size: 14px;
+        --session-title-size: 16px;
+        --session-time-size: 12px;                /*   Timer  Size   */
+        --session-label-size: 11px;               /*   " Watched  Video "  &  " Total  Duration "  Size   */
       }
-      .session-col { padding: 14px 16px; }
+      .session-col { padding: 12px 14px; }        /*   12px  =  Top  &  Bottom  Padding  ,,   14px  =  Left  &  Right  Padding   */
     }
 
-    /* =========================================================================
-       PROGRESS CARDS & WATER WAVE CIRCLE (GLASS + NEOMORPHISM)
-       ========================================================================= */
+    /*   ===========================================================================================
+                   PROGRESS  CARDS  &  WATER  WAVE  CIRCLE   (  GLASS  +  NEOMORPHISM  )
+         ===========================================================================================   */
     .card-row {
       display: flex;
       flex-direction: row;
@@ -832,13 +840,18 @@
     .progress-fill.remaining {
       background: linear-gradient(90deg, #9333ea, #ec4899);
     }
+    
     .percent-text {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      font-weight: 700;
+      font-size: 0.7rem;                 /*   Mobile  Size   (  E.g.  :  0.7rem  or  13px  )   */
+      color: #0f172a;                    /*   Light  Mode  color   (  Change  To  Any  hex  )   */
+      font-weight: 700;                  /*   Weight   (  400  =  Normal  ,,   600  =  Semibold  ,,   700  =  Bold  ,,   800  =  Extrabold  )   */
       margin: 0;
       white-space: pre-wrap;
     }
+    html.dark .percent-text {
+      color: var(--text-secondary);      /*   Keeps  Dark  Mode  Untouched   */
+    }
+    
     .wave-circle {
       width: 62px;
       height: 62px;
@@ -917,10 +930,14 @@
         margin: 0 auto 10px;
       }
       .info-card .percent-text {
-        font-size: 0.88rem;
-        color: var(--text-secondary);
-        font-weight: 700;
+        font-size: 0.8rem;                 /*   Desktop  Size   (  E.g.  :  0.75rem  or  13px  )   */
+        color: #0f172a;                    /*   Light  Mode  Color   (  Change  To  Any  Hex  )   */
+        font-weight: 700;                  /*   Weight   (  400  =  Normal  ,,   600  =  Semibold  ,,   700  =  Bold  ,,   800  =  Extrabold  )   */
         margin: 0;
+        white-space: pre-wrap;
+      }
+      html.dark .percent-text {
+        color: var(--text-secondary);      /*   Keeps  Dark  Mode  Untouched   */
       }
     }
 
@@ -1077,7 +1094,7 @@
           <div id="leftProgressFill" class="progress-fill" style="width:0%;"></div>
         </div>
 
-        <div class="percent-text" id="leftPercent">0&nbsp;% &nbsp;&nbsp;&nbsp;Watched</div>
+        <div class="percent-text" id="leftPercent">0&nbsp;%&nbsp;&nbsp;&nbsp;Watched</div>
       </div>
     </div>
 
@@ -1092,7 +1109,7 @@
           <div id="rightProgressFill" class="progress-fill remaining" style="width:0%;"></div>
         </div>
 
-        <div class="percent-text" id="rightPercent">100&nbsp;% &nbsp;&nbsp;&nbsp;Remaining</div>
+        <div class="percent-text" id="rightPercent">100&nbsp;%&nbsp;&nbsp;&nbsp;Remaining</div>
         
         <div id="liveIndicator" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
           <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
@@ -1122,7 +1139,7 @@
     <!--   Removed  Explicit  Tailwind  h-3 w-3  To  Avoid  Display  Quirks  ;   Size  Controlled  By  CSS  Below   -->
     <div class="session-header">
       <span id="sessionStatusDot" class="session-dot" aria-hidden="true"></span>
-      <span class="session-title">Current&nbsp;&nbsp;Session</span>
+      <span class="session-title">Current&nbsp;&nbsp;&nbsp;Session</span>
     </div>
 
     <!--   Main  Row  :  Two  Columns   (  Left  =  Current  Watched  ,,   Right  =  Total  Duration  )   -->
@@ -1130,13 +1147,13 @@
       <div class="session-col">
         <!--   Exact  ID  Used  By  JS   -->
         <div id="sessionCurrentTime" class="session-time">00:00:00:00</div>
-        <div class="session-label">Watched&nbsp;&nbsp;Video</div>
+        <div class="session-label">Watched&nbsp;&nbsp;&nbsp;Video</div>
       </div>
 
       <div class="session-col">
         <!--   Exact  ID  Used  By  JS   -->
         <div id="sessionTotalDuration" class="session-time">00:00:00:00</div>
-        <div class="session-label">Total&nbsp;&nbsp;Duration</div>
+        <div class="session-label">Total&nbsp;&nbsp;&nbsp;Duration</div>
       </div>
     </div>
   </div>
@@ -2807,24 +2824,25 @@ window.startSessionTracking = function() {
     return;
   }
 
-  //   Helper  :  Format With  Leading Zero + 2 Decimals
+  //   Helper  :  Format  With  Leading Zero + 2 Decimals
   function formatPercent(value) {
-    const fixed = value.toFixed(2);                 //   e.g.  -  " 3.50 "
+    const fixed = value.toFixed(2);                     //   e.g.  -  " 3.50 "
     const [intPart, decPart] = fixed.split('.');
-    const paddedInt = intPart.padStart(2, '0');     //   " 03 "
+    const paddedInt = intPart.padStart(2, '0');         //   " 03 "
     return `${paddedInt}.${decPart}`;
   }
 
 
-  //   Initial UI  ( Before Playback Starts or At 0:00 )
+  //   Initial  UI   (  Before  Playback  Starts  or  At  0:00  )
   function setInitialUI() {
     leftFill.style.width = '0%';
     rightFill.style.width = '100%';
-    leftPercentEl.textContent = '0%  Watched';
-    rightPercentEl.textContent = '100%  Remaining';
+    leftPercentEl.textContent = '0 %   Watched';
+    rightPercentEl.textContent = '100 %   Remaining';
   }
+  
 
-  //   👇🏻  THROTTLED LOGGER  :  Prevents The  Debug Box  From Crashing Your Browser While Constantly Updating
+  //   👇🏻  THROTTLED  LOGGER  :  Prevents  The  Debug Box  From  Crashing  Your  Browser  While  Constantly  Updating
   let lastDebugLogTime = 0;
 
   //   ====================================================================================================
@@ -2953,7 +2971,7 @@ window.startSessionTracking = function() {
     let remPct = 100 - watchedPct;
 
     if (isYtLive) {
-        //   For  YouTube  Live  ,,   Show  100 / 0  Unless  Scrubbed  Back  Significantly   (  > 15s  )
+        //   For  Any  Live  Stream  ,,   Show  100 / 0  Unless  Scrubbed  Back  Significantly   (  > 15s  )
         if (ytDrift > 15) {
             leftFill.style.width = `${watchedPct.toFixed(2)}%`;
             rightFill.style.width = `${remPct.toFixed(2)}%`;
@@ -2962,21 +2980,21 @@ window.startSessionTracking = function() {
         } else {
             leftFill.style.width = '100%';
             rightFill.style.width = '0%';
-            leftPercentEl.textContent = '100%   Watched';
-            rightPercentEl.textContent = '0%   Remaining';
+            leftPercentEl.textContent = '100 %   Watched';
+            rightPercentEl.textContent = '0 %   Remaining';
         }
     } else {
         //   Normal  VOD  Percentage  Logic
         if (cur === 0) {
             leftFill.style.width = '0%';
             rightFill.style.width = '100%';
-            leftPercentEl.textContent = '0%   Watched';
-            rightPercentEl.textContent = '100%   Remaining';
+            leftPercentEl.textContent = '0 %   Watched';
+            rightPercentEl.textContent = '100 %   Remaining';
         } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
             leftFill.style.width = '100%';
             rightFill.style.width = '0%';
-            leftPercentEl.textContent = '100%   Watched';
-            rightPercentEl.textContent = '0%   Remaining';
+            leftPercentEl.textContent = '100 %   Watched';
+            rightPercentEl.textContent = '0 %   Remaining';
         } else {
             leftFill.style.width = `${watchedPct.toFixed(3)}%`;  
             rightFill.style.width = `${remPct.toFixed(3)}%`;
