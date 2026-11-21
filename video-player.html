@@ -1716,10 +1716,19 @@ if (isDrmOrDash && videoElement) {
           if (freshLic) resolvedLicenseUrl = freshLic;
         }
 
-        if ((forceRefresh || !hasDrmKeys) && (ch.key || ch.drmKeys || ch.keys)) {
-          addClearKeys(ch.key || ch.drmKeys || ch.keys);
+        if (forceRefresh || !hasDrmKeys) {
+          if (Array.isArray(ch.sonuxs) && ch.sonuxs.length > 0) {
+            addClearKeys(ch.sonuxs);
+          }
+          if (ch.key_id && ch.key && !String(ch.key).includes(":")) {
+            addClearKeys(`${ch.key_id}:${ch.key}`);
+          }
+          if (ch.key || ch.drmKeys || ch.keys) {
+            addClearKeys(ch.key || ch.drmKeys || ch.keys);
+          }
           hasDrmKeys = Object.keys(clearKeysMap).length > 0;
         }
+
         if (ch.name && !title) {
           document.getElementById("videoTitle").textContent = ch.name;
           document.title = ch.name;
@@ -1816,6 +1825,15 @@ if (isDrmOrDash && videoElement) {
         }
 
         shakaPlayer.configure(shakaConfig);
+
+        let audioSelected = false;
+        shakaPlayer.addEventListener('trackschanged', () => {
+          if (audioSelected) return;
+          const langs = shakaPlayer.getAudioLanguages();
+          if (langs && langs.length) {
+            try { shakaPlayer.selectAudioLanguage(langs[0]); audioSelected = true; } catch {}
+          }
+        });
 
         //   4.  Universal  Request  Filter   (  Akamai / JioTV  Query  Token  +  Optional  Vercel  Header  Proxy  )
         shakaPlayer.getNetworkingEngine().registerRequestFilter((type, request) => {
