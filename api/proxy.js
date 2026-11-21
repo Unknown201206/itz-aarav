@@ -14,13 +14,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const headers = {};
+    const headers = {
+      "User-Agent": ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "Accept": "*/*"
+    };
     if (cookie) headers["Cookie"] = cookie;
     if (referer) {
       headers["Referer"] = referer;
       try { headers["Origin"] = new URL(referer).origin; } catch {}
     }
-    if (ua) headers["User-Agent"] = ua;
     if (req.headers.range) headers["Range"] = req.headers.range;
 
     const upstream = await fetch(url, {
