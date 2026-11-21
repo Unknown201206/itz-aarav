@@ -675,8 +675,8 @@
       --session-time-size: 10px;          /*   Timer  Size   */
       --session-label-size: 10px;         /*   " Watched  Video "  &  " Total  Duration "  Size   */
       --session-title-weight: 800;
-      --session-time-weight: 700;         /*   Timer  Weight   */
-      --session-label-weight: 700;        /*   Label  Weight   */
+      --session-time-weight: 800;         /*   Timer  Weight   */
+      --session-label-weight: 800;        /*   Label  Weight   */
       --session-dot-color: #ef4444;
 
       background: var(--glass-bg);
@@ -736,7 +736,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 2px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
+      gap: 1px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
       padding: 10px 10px;          /*   8px  =  Top  &  Bottom  Padding  ,,   10px  =  Left  &  Right  Padding   */
       border-radius: 12px;
       background: var(--neo-surface);
@@ -758,7 +758,7 @@
       font-size: var(--session-label-size);
       font-weight: var(--session-label-weight);
       color: #102a66;                        /*   Light  Mode  Label  Color   (  Change  Freely  )   */
-      letter-spacing: 0.2px;
+      letter-spacing: 0.3px;
     }
     html.dark .session-label {
       color: var(--text-muted);              /*   Dark  Mode  Label  Color   (  As  it  Was  )   */
@@ -867,10 +867,10 @@
     }
 
     html.dark .pct-num {
-      color: #c084fc;                    /*   Dark  Mode  :  Percent  Color   */
+      color: var(--text-secondary);      /*   Keeps  Dark  Mode  Untouched   */
     }
     html.dark .pct-label {
-      color: #cbd5e1;                    /*   Dark  Mode  :  " Watched "  /  " Remaining "  Color   */
+      color: var(--text-secondary);      /*   Dark  Mode  :  " Watched "  /  " Remaining "  Color   */
     }
     
     
