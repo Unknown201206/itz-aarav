@@ -1287,15 +1287,15 @@ const params = new URLSearchParams(window.location.search);
 const title = params.get("title");
 const video = params.get("video");
 const videoID = params.get("videoID");
-const provider = params.get("provider");
-const noSkip = params.has("noskip");     //   ✅ Force to Not Skip the Video
-const skipSeconds = parseFloat(params.get("skip"));        //   ✅ Flexible Skip Timing for " skipSeconds " using Videos
-const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;      //   ✅ Default = 13.8s Skip
+let provider = params.get("provider");
+const noSkip = params.has("noskip");         //   ✅  Force  To  Not  Skip  The  Video
+const skipSeconds = parseFloat(params.get("skip"));          //   ✅  Flexible  Skip  Timing  For  " skipSeconds "  Using  Videos
+const skipSecondsFinal = Number.isFinite(skipSeconds) ? skipSeconds : 13.8;        //   ✅  Default  =  13.8s  Skip
 
 //   🪄  UNIVERSAL  PARAMETERS  FOR  COOKIES  ,,   APIs  ,,   HEADERS  &  PROXY
 const customCookie = params.get("cookie") || "";
 const cookieUrl = params.get("cookieUrl") || "";
-const apiUrl = params.get("api") || "";                   //   e.g.   ?api=https://.../sports.json&id=STEN3
+const apiUrl = params.get("api") || "";                      //   e.g.   ?api=https://.../sports.json&id=STEN3
 const channelId = params.get("id") || "";
 const customReferer = params.get("referer") || "";
 const customUserAgent = params.get("ua") || "";
@@ -1348,8 +1348,8 @@ if (title) {
 const wrapper = document.getElementById("playerWrapper");
 
 
-//   ✅  SECURITY FIX  :  Prevent  Cross - Site  Scripting  ( XSS )  Attacks Via  URL Parameters
-//   This Strips Malicious Code From  Links  Before They Enter Your  DOM .
+//   ✅  SECURITY  FIX  :  Prevent  Cross - Site  Scripting   (  XSS  )   Attacks  Via  URL  Parameters
+//   This  Strips  Malicious  Code  From  Links  Before  They  Enter  Your  DOM  .
 function escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, 
@@ -1364,10 +1364,59 @@ function escapeHTML(str) {
 }
 
 
-//   Sanitize The URL Variables & Keep Valid Percent-Encoding (%20) Intact
+//   Unwrap  Nested  HTML  Player  Pages   (  e.g.  -  /m3u8/?url=...  )   While  Keeping  CORS  Proxies  Intact
+function unwrapPlayerWrapperUrl(inputUrl) {
+  let current = inputUrl;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const u = new URL(current);
+      const path = u.pathname.toLowerCase();
+      const isDirectMedia = /\.(m3u8|mpd|mp4|webm|ogg|mov)$/i.test(path);
+      const isProxyEndpoint = path.includes("proxy");
+      if (isDirectMedia || isProxyEndpoint) break;
+
+      const nested =
+        u.searchParams.get("url") ||
+        u.searchParams.get("src") ||
+        u.searchParams.get("file") ||
+        u.searchParams.get("stream") ||
+        u.searchParams.get("link");
+
+      if (nested && /^https?:\/\//i.test(nested.trim())) {
+        current = nested.trim();
+      } else {
+        break;
+      }
+    } catch {
+      break;
+    }
+  }
+  return current;
+}
+
+//   Sanitize  The  URL  Variables  &  Keep  Valid  Percent - Encoding   (  %20  )   Intact
 const safeVideoID = escapeHTML(videoID);
-const rawVideoUrl = video ? decodeURIComponent(video).trim() : "";
+let rawVideoUrl = "";
+if (video) {
+  try {
+    rawVideoUrl = decodeURIComponent(video).trim();
+  } catch {
+    rawVideoUrl = video.trim();
+  }
+  rawVideoUrl = unwrapPlayerWrapperUrl(rawVideoUrl);
+}
 const safeVideo = escapeHTML(rawVideoUrl ? encodeURI(rawVideoUrl).replace(/%25/g, '%') : "");
+
+//   Auto - Switch  Provider  if  " html5 "   (  Or  Empty  )   Was  Passed  For  An  HLS / DASH  Stream
+if ((!provider || provider === "html5") && rawVideoUrl) {
+  const lowerStream = rawVideoUrl.toLowerCase();
+  if (lowerStream.includes(".m3u8") || lowerStream.includes("format=m3u8")) {
+    provider = "hls";
+  } else if (lowerStream.includes(".mpd")) {
+    provider = "dash";
+  }
+}
+
 
 //   Main Player Load & Gesture Zone Injection (using insertAdjacentHTML so #playerLoader is not destroyed)
 if (provider === "youtube" && safeVideoID) {
@@ -1851,27 +1900,27 @@ if (isDrmOrDash && videoElement) {
 
 
 else if (provider === "hls" && videoElement) {
-  const sourceUrl = safeVideo;
-  // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   ( Commented Out To Prevent UI Lag )
+  const sourceUrl = rawVideoUrl;
+  // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   (  Commented  Out  To  Prevent  UI  Lag  )
 
-  //   Safe Global Fallback To Hide The Loader If The Network Fails Early
+  //   Safe  Global  Fallback  To  Hide  The  Loader  if  The  Network  Fails  Early
   function forceHideLoader() {
     const loader = document.getElementById('playerLoader');
     if (loader) loader.classList.remove('show');
   }
 
-  //   👇🏻  THE ULTIMATE CORS HACK  :  Global XHR Interceptor  ( FIXED CRASH BUG )
+  //   👇🏻  THE  ULTIMATE  CORS  HACK  :  Global  XHR  Interceptor   (  FIXED  CRASH  BUG  )
   if (!window.xhrPatched) {
       window.xhrPatched = true;
       const origOpen = XMLHttpRequest.prototype.open;
-      //   Using  ' arguments '  Object Safely Prevents The Native Browser Crash
+      //   Using  " arguments "  Object  Safely  Prevents  The  Native  Browser  Crash
       XMLHttpRequest.prototype.open = function() {
           if (typeof arguments[1] === 'string') {
               let url = arguments[1];
-              //   Force All Absolute Heroku  Sub - Manifests  Back Through The Vercel Proxy
+              //   Force  All  Absolute  Heroku  Sub - Manifests  Back  Through  The  Vercel  Proxy
               if (url.includes('live-server-h-3fd3ea6270f5.herokuapp.com')) {
                   arguments[1] = url.replace('https://live-server-h-3fd3ea6270f5.herokuapp.com', '/stream-proxy');
-                  //   console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);      <--   ( Silenced )
+                  //   console.log("[PROXY REWRITE] Heroku -> Vercel Proxy:", arguments[1]);        <--   (  Silenced  )
               }
           }
           return origOpen.apply(this, arguments);
