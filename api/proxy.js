@@ -1,29 +1,73 @@
-export default async function handler(req, res) {
-  // Handle CORS preflight
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "*");
+export const config = { runtime: "edge" };
+
+//   Add  Any  Other  Domain  You  Own  To  This  List
+const ALLOWED_ORIGINS = [
+  "https://itz-aarav.vercel.app"
+];
+
+export default async function handler(req) {
+  const origin = req.headers.get("origin") || "";
+  const reqReferer = req.headers.get("referer") || "";
+  const secFetchSite = req.headers.get("sec-fetch-site") || "";
+
+  const isSameOrigin = secFetchSite === "same-origin";
+  const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin);
+  const isAllowedReferer = ALLOWED_ORIGINS.some((allowed) => reqReferer.startsWith(allowed));
+
+  const corsOrigin = isAllowedOrigin ? origin : ALLOWED_ORIGINS[0];
+  const baseCorsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+    "Access-Control-Allow-Headers": "*",
+    "Vary": "Origin"
+  };
 
   if (req.method === "OPTIONS") {
-    return res.status(200).end();
+    if (!isSameOrigin && !isAllowedOrigin && !isAllowedReferer) {
+      return new Response(null, { status: 403 });
+    }
+    return new Response(null, { status: 204, headers: baseCorsHeaders });
   }
 
-  const { url, cookie, referer, ua } = req.query;
-  if (!url) {
-    return res.status(400).json({ error: "Missing  Url  Parameter" });
+  //   Block  External  Websites  &  Unauthorized  scrapers  To  Protect  Your  10 GB  Quota
+  if (!isSameOrigin && !isAllowedOrigin && !isAllowedReferer) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const url = searchParams.get("url");
+  const cookie = searchParams.get("cookie") || "";
+  const referer = searchParams.get("referer") || "";
+  const ua = searchParams.get("ua") || "";
+
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return new Response(JSON.stringify({ error: "Missing  or  Invalid  URL  Parameter" }), {
+      status: 400,
+      headers: { ...baseCorsHeaders, "Content-Type": "application/json" }
+    });
   }
 
   try {
-    const headers = {
-      "User-Agent": ua || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    const headers = new Headers({
+      "User-Agent":
+        ua ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
       "Accept": "*/*"
-    };
-    if (cookie) headers["Cookie"] = cookie;
+    });
+
+    if (cookie) headers.set("Cookie", cookie);
     if (referer) {
-      headers["Referer"] = referer;
-      try { headers["Origin"] = new URL(referer).origin; } catch {}
+      headers.set("Referer", referer);
+      try {
+        headers.set("Origin", new URL(referer).origin);
+      } catch {}
     }
-    if (req.headers.range) headers["Range"] = req.headers.range;
+
+    const range = req.headers.get("range");
+    if (range) headers.set("Range", range);
 
     const upstream = await fetch(url, {
       method: req.method,
@@ -31,13 +75,14 @@ export default async function handler(req, res) {
       redirect: "follow"
     });
 
-    res.status(upstream.status);
-
     const contentType = upstream.headers.get("content-type") || "";
     const isM3u8 =
       contentType.toLowerCase().includes("mpegurl") ||
       url.toLowerCase().includes(".m3u8");
 
+    const resHeaders = new Headers(baseCorsHeaders);
+
+    //   Rewrite  HLS  Playlists  So  Sub - Manifests  &  .ts  Chunks  Also  Stay  Proxied
     if (upstream.ok && isM3u8) {
       const text = await upstream.text();
       if (text.trimStart().startsWith("#EXTM3U")) {
@@ -58,29 +103,49 @@ export default async function handler(req, res) {
             if (!trimmed) return line;
             if (trimmed.startsWith("#")) {
               return line.replace(/URI="([^"]+)"/g, (_, uri) => {
-                try { return `URI="${buildProxyUrl(uri)}"`; } catch { return `URI="${uri}"`; }
+                try {
+                  return `URI="${buildProxyUrl(uri)}"`;
+                } catch {
+                  return `URI="${uri}"`;
+                }
               });
             }
-            try { return buildProxyUrl(trimmed); } catch { return line; }
+            try {
+              return buildProxyUrl(trimmed);
+            } catch {
+              return line;
+            }
           })
           .join("\n");
 
-        res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-        return res.send(rewritten);
+        resHeaders.set("Content-Type", "application/vnd.apple.mpegurl");
+        return new Response(rewritten, { status: upstream.status, headers: resHeaders });
       }
 
-      if (contentType) res.setHeader("Content-Type", contentType);
-      return res.send(text);
+      if (contentType) resHeaders.set("Content-Type", contentType);
+      return new Response(text, { status: upstream.status, headers: resHeaders });
     }
 
-    if (contentType) res.setHeader("Content-Type", contentType);
-
+    //   Stream  Video  Chunks  Directly   (  Zero  RAM  Buffering  )
+    if (contentType) resHeaders.set("Content-Type", contentType);
     const contentRange = upstream.headers.get("content-range");
-    if (contentRange) res.setHeader("Content-Range", contentRange);
+    if (contentRange) resHeaders.set("Content-Range", contentRange);
+    const contentLength = upstream.headers.get("content-length");
+    if (contentLength) resHeaders.set("Content-Length", contentLength);
+    const acceptRanges = upstream.headers.get("accept-ranges");
+    if (acceptRanges) resHeaders.set("Accept-Ranges", acceptRanges);
 
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-    return res.send(buffer);
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: resHeaders
+    });
   } catch (err) {
-    return res.status(502).json({ error: "Proxy  Fetch  Failed", details: err.message });
+    return new Response(
+      JSON.stringify({ error: "Proxy Fetch Failed", details: err.message }),
+      {
+        status: 502,
+        headers: { ...baseCorsHeaders, "Content-Type": "application/json" }
+      }
+    );
   }
 }
