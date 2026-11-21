@@ -1364,7 +1364,8 @@ function escapeHTML(str) {
 }
 
 
-//   Unwrap  Nested  HTML  Player  Pages   (  e.g.  -  /m3u8/?url=...  )   While  Keeping  CORS  Proxies  Intact
+//   Unwrap  Nested  HTML  Player  Pages   (  e.g.  -  /m3u8/?url=...  )   &  Capture  Their  Origin  As  Referer
+let wrapperReferer = "";
 function unwrapPlayerWrapperUrl(inputUrl) {
   let current = inputUrl;
   for (let i = 0; i < 3; i++) {
@@ -1383,6 +1384,7 @@ function unwrapPlayerWrapperUrl(inputUrl) {
         u.searchParams.get("link");
 
       if (nested && /^https?:\/\//i.test(nested.trim())) {
+        wrapperReferer = u.origin + "/";
         current = nested.trim();
       } else {
         break;
@@ -1900,17 +1902,18 @@ if (isDrmOrDash && videoElement) {
 
 
 else if (provider === "hls" && videoElement) {
-  function buildHlsProxyUrl(target) {
+  function buildHlsProxyUrl(target, refOverride = "") {
     const p = new URLSearchParams({ url: target });
     if (customCookie) p.set("cookie", customCookie);
-    if (customReferer) p.set("referer", customReferer);
+    const ref = customReferer || refOverride;
+    if (ref) p.set("referer", ref);
     if (customUserAgent) p.set("ua", customUserAgent);
     return `/api/proxy?${p.toString()}`;
   }
 
-  let sourceUrl = useProxy ? buildHlsProxyUrl(rawVideoUrl) : rawVideoUrl;
-  let triedInnerFallback = false;
-  let triedVercelProxy = useProxy;
+  let sourceUrl = useProxy ? buildHlsProxyUrl(rawVideoUrl, wrapperReferer) : rawVideoUrl;
+  let triedOuterViaVercel = useProxy;
+  let triedInnerViaVercel = false;
   if (window.DEBUG_MODE) console.log(`[  HLS  INIT  ]   Loading  :  ${sourceUrl}`);
   
   //   Safe  Global  Fallback  To  Hide  The  Loader  if  The  Network  Fails  Early
@@ -1984,27 +1987,27 @@ else if (provider === "hls" && videoElement) {
       }
 
       if (data.fatal) {
-        //   Auto - Fallback  1  :  If  An  Outer  Proxy  URL  Fails  ,,   Retry  Directly  With  its  Inner  " ?url= "  Stream
-        if (!triedInnerFallback && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        //   Auto - Fallback  1  :  Retry  The  Original  Stream  Via  Vercel  Proxy   (  With  Wrapper  Referer  +  Browser  UA  )
+        if (!triedOuterViaVercel && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          triedOuterViaVercel = true;
+          sourceUrl = buildHlsProxyUrl(rawVideoUrl, wrapperReferer);
+          if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  1  ]   Retrying  Via  Vercel  Proxy  :  ${sourceUrl}`);
+          hls.loadSource(sourceUrl);
+          return;
+        }
+
+        //   Auto - Fallback  2  :  If  Outer  Proxy  Still  Fails  ,,   Try  its  Inner  " ?url= "  Stream  Via  Vercel  Proxy
+        if (!triedInnerViaVercel && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           try {
-            const innerUrl = new URL(sourceUrl).searchParams.get("url");
+            const innerUrl = new URL(rawVideoUrl).searchParams.get("url");
             if (innerUrl && /^https?:\/\//i.test(innerUrl)) {
-              triedInnerFallback = true;
-              sourceUrl = innerUrl.trim();
-              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Outer  Proxy  Failed  .   Retrying  Direct  :  ${sourceUrl}`);
+              triedInnerViaVercel = true;
+              sourceUrl = buildHlsProxyUrl(innerUrl.trim(), wrapperReferer);
+              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  2  ]   Retrying  Inner  Stream  Via  Vercel  Proxy  :  ${sourceUrl}`);
               hls.loadSource(sourceUrl);
               return;
             }
           } catch {}
-        }
-
-        //   Auto - Fallback  2  :  If  Direct  Stream  Hits  CORS / ISP  Block   (  HTTP 0  )  ,,   Retry  Via  Own  Vercel  Proxy
-        if (!triedVercelProxy && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          triedVercelProxy = true;
-          sourceUrl = buildHlsProxyUrl(sourceUrl);
-          if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Direct  Blocked  .   Retrying  Via  Vercel  Proxy  :  ${sourceUrl}`);
-          hls.loadSource(sourceUrl);
-          return;
         }
 
         forceHideLoader();         //   Safely  Hide  Loader  Using  The  Global  Function
