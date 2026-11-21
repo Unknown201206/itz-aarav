@@ -31,7 +31,46 @@ export default async function handler(req, res) {
 
     res.status(upstream.status);
 
-    const contentType = upstream.headers.get("content-type");
+    const contentType = upstream.headers.get("content-type") || "";
+    const isM3u8 =
+      contentType.toLowerCase().includes("mpegurl") ||
+      url.toLowerCase().includes(".m3u8");
+
+    if (upstream.ok && isM3u8) {
+      const text = await upstream.text();
+      if (text.trimStart().startsWith("#EXTM3U")) {
+        const baseUrl = upstream.url || url;
+        const buildProxyUrl = (rawTarget) => {
+          const abs = new URL(rawTarget.trim(), baseUrl).href;
+          const p = new URLSearchParams({ url: abs });
+          if (cookie) p.set("cookie", cookie);
+          if (referer) p.set("referer", referer);
+          if (ua) p.set("ua", ua);
+          return `/api/proxy?${p.toString()}`;
+        };
+
+        const rewritten = text
+          .split(/\r?\n/)
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return line;
+            if (trimmed.startsWith("#")) {
+              return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+                try { return `URI="${buildProxyUrl(uri)}"`; } catch { return `URI="${uri}"`; }
+              });
+            }
+            try { return buildProxyUrl(trimmed); } catch { return line; }
+          })
+          .join("\n");
+
+        res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+        return res.send(rewritten);
+      }
+
+      if (contentType) res.setHeader("Content-Type", contentType);
+      return res.send(text);
+    }
+
     if (contentType) res.setHeader("Content-Type", contentType);
 
     const contentRange = upstream.headers.get("content-range");
