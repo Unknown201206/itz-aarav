@@ -1900,9 +1900,10 @@ if (isDrmOrDash && videoElement) {
 
 
 else if (provider === "hls" && videoElement) {
-  const sourceUrl = rawVideoUrl;
-  // console.log("[INIT] Starting HLS logic for:", sourceUrl);      <--   (  Commented  Out  To  Prevent  UI  Lag  )
-
+  let sourceUrl = rawVideoUrl;
+  let triedInnerFallback = false;
+  if (window.DEBUG_MODE) console.log(`[  HLS  INIT  ]   Loading  :  ${sourceUrl}`);
+  
   //   Safe  Global  Fallback  To  Hide  The  Loader  if  The  Network  Fails  Early
   function forceHideLoader() {
     const loader = document.getElementById('playerLoader');
@@ -1943,14 +1944,16 @@ else if (provider === "hls" && videoElement) {
           xhr.setRequestHeader('auth-key', 'romeo123'); 
         }
         
-        //   Track  Network  Responses  To  See  Exactly  What  Succeeds / Fails   (  REMOVED  LOGS  FOR  UI  PERFORMANCE  )
-        xhr.addEventListener('loadend', () => {
-          if (xhr.status >= 400 || xhr.status === 0) {
-            //   console.error(`[  NETWORK  FAIL  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 60)}   🕊️  .......`);
-          } else if (url.includes('.m3u8')) {
-            //   console.log(`[  MANIFEST  SUCCESS  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 60)}   🕊️  .......`);
-          }
-        });
+        //   Track  Network  Responses  Only  When  " &debug=1 "  is  Active
+        if (window.DEBUG_MODE) {
+          xhr.addEventListener('loadend', () => {
+            if (xhr.status >= 400 || xhr.status === 0) {
+              console.error(`[  NETWORK  FAIL  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 90)}`);
+            } else if (url.includes('.m3u8')) {
+              console.log(`[  MANIFEST  SUCCESS  ]   Status  :  ${xhr.status}   |   URL  :  ${url.substring(0, 90)}`);
+            }
+          });
+        }
       }
     });
     
@@ -1966,8 +1969,26 @@ else if (provider === "hls" && videoElement) {
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
-      //   console.error(`[  HLS  ERROR  ]   Type   :   ${data.type}   |   Details   :   ${data.details}`);      <--   (  Silenced  )
+      if (window.DEBUG_MODE) {
+        const httpCode = data.response ? ` | HTTP: ${data.response.code}` : '';
+        console.error(`[  HLS  ERROR  ]   Type  :  ${data.type}   |   Details  :  ${data.details}${httpCode}`);
+      }
+
       if (data.fatal) {
+        //   Auto - Fallback  :  If  An  Outer  Proxy  URL  Fails  ,,   Retry  Directly  With  its  Inner  " ?url= "  Stream
+        if (!triedInnerFallback && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          try {
+            const innerUrl = new URL(sourceUrl).searchParams.get("url");
+            if (innerUrl && /^https?:\/\//i.test(innerUrl)) {
+              triedInnerFallback = true;
+              sourceUrl = innerUrl.trim();
+              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  ]   Proxy  Failed  .   Retrying  Direct  :  ${sourceUrl}`);
+              hls.loadSource(sourceUrl);
+              return;
+            }
+          } catch {}
+        }
+
         forceHideLoader();         //   Safely  Hide  Loader  Using  The  Global  Function
         
         //   Ensure  UI  Builds  Even  On  Failure  So  it  Doesn't  Spin  Forever
