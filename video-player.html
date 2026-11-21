@@ -518,9 +518,9 @@
       --bg-diagonal: linear-gradient(225deg, #fce7f3 0%, #ede9fe 32%, #e0e7ff 66%, #cffafe 100%);
     }
 
-    /* =========================================================================
-       DARK MODE (OBSIDIAN BLACK GLASS + DIAGONAL TOP-RIGHT TO BOTTOM-LEFT)
-       ========================================================================= */
+    /*   ==========================================================================================================
+                   DARK  MODE   (  OBSIDIAN  BLACK  GLASS  +  DIAGONAL  TOP - RIGHT  TO  BOTTOM - LEFT  )
+         ==========================================================================================================   */
     html.dark {
       --bg-base: #060911;
       --text-primary: #f8fafc;
@@ -712,7 +712,7 @@
       background-color: var(--session-dot-color);
       flex-shrink: 0;
       display: inline-block;
-      transform: translateY(-1px);         /*   <--   Optically  Centers  Dot  With  Capital  " C "   (  Tweak  -0.5px  To  -1.5px  if  Needed  )   */
+      transform: translateY(-0.5px);         /*   <--   Optically  Centers  Dot  With  Capital  " C "   [  Tweak   -0.5px  To  -1.5px  (  Downside  To  Upside  )   if  Needed  ]   */
       box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
     }
     .session-title {
@@ -736,7 +736,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 3px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
+      gap: 2px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
       padding: 10px 10px;          /*   8px  =  Top  &  Bottom  Padding  ,,   10px  =  Left  &  Right  Padding   */
       border-radius: 12px;
       background: var(--neo-surface);
@@ -746,18 +746,22 @@
     .session-time {
       font-size: var(--session-time-size);
       font-weight: var(--session-time-weight);
-      color: #0f172a;                        /*   Light  Mode  Timer  Color   */
-      html.dark .session-time {
-        color: var(--text-primary);          /*   Dark  Mode  Timer  Color   */
-      }
+      color: #0f172a;                        /*   Light  Mode  Timer  Color   (  Change  Freely  )   */
       letter-spacing: 0.4px;
       font-variant-numeric: tabular-nums;
     }
+    html.dark .session-time {
+      color: var(--text-primary);            /*   Dark  Mode  Timer  Color   (  As  it  Was  )   */
+    }
+
     .session-label {
       font-size: var(--session-label-size);
       font-weight: var(--session-label-weight);
-      color: var(--text-muted);
+      color: #102a66;                        /*   Light  Mode  Label  Color   (  Change  Freely  )   */
       letter-spacing: 0.2px;
+    }
+    html.dark .session-label {
+      color: var(--text-muted);              /*   Dark  Mode  Label  Color   (  As  it  Was  )   */
     }
     @media (min-width: 520px) {
       .session-card {
@@ -851,6 +855,24 @@
     html.dark .percent-text {
       color: var(--text-secondary);      /*   Keeps  Dark  Mode  Untouched   */
     }
+
+    /*   Separate  Colors  For  Percent  Number  vs.  Label  Text   */
+    .pct-num {
+      color: #0f172a;                    /*   Light  Mode  :  Percent  Color   (  e.g.  -  Purple  )   */
+      font-weight: 800;
+    }
+    .pct-label {
+      color: #102a66;                    /*   Light  Mode  :  " Watched "  /  " Remaining "  Color   (  e.g.  -  Black  )   */
+      font-weight: 700;
+    }
+
+    html.dark .pct-num {
+      color: #c084fc;                    /*   Dark  Mode  :  Percent  Color   */
+    }
+    html.dark .pct-label {
+      color: #cbd5e1;                    /*   Dark  Mode  :  " Watched "  /  " Remaining "  Color   */
+    }
+    
     
     .wave-circle {
       width: 62px;
@@ -1094,7 +1116,7 @@
           <div id="leftProgressFill" class="progress-fill" style="width:0%;"></div>
         </div>
 
-        <div class="percent-text" id="leftPercent">0&nbsp;%&nbsp;&nbsp;&nbsp;Watched</div>
+        <div class="percent-text" id="leftPercent"><span class="pct-num">0&nbsp;%</span>&nbsp;&nbsp;&nbsp;<span class="pct-label">Watched</span></div>
       </div>
     </div>
 
@@ -1109,7 +1131,7 @@
           <div id="rightProgressFill" class="progress-fill remaining" style="width:0%;"></div>
         </div>
 
-        <div class="percent-text" id="rightPercent">100&nbsp;%&nbsp;&nbsp;&nbsp;Remaining</div>
+        <div class="percent-text" id="rightPercent"><span class="pct-num">100&nbsp;%</span>&nbsp;&nbsp;&nbsp;<span class="pct-label">Remaining</span></div>
         
         <div id="liveIndicator" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-weight: 800; font-size: 13px; cursor: pointer; background: rgba(0,0,0,0.05); padding: 4px 14px; border-radius: 12px; transition: all 0.2s;">
           <span id="liveIndicatorDot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #16a34a; box-shadow: 0 0 5px #16a34a;"></span>
@@ -2833,12 +2855,17 @@ window.startSessionTracking = function() {
   }
 
 
+  //   Helper  :  Separate  Spans  For  Percent  Number  &  Label  Text
+  function setPercentText(el, num, label) {
+    el.innerHTML = `<span class="pct-num">${num} %</span>   <span class="pct-label">${label}</span>`;
+  }
+
   //   Initial  UI   (  Before  Playback  Starts  or  At  0:00  )
   function setInitialUI() {
     leftFill.style.width = '0%';
     rightFill.style.width = '100%';
-    leftPercentEl.textContent = '0 %   Watched';
-    rightPercentEl.textContent = '100 %   Remaining';
+    setPercentText(leftPercentEl, '0', 'Watched');
+    setPercentText(rightPercentEl, '100', 'Remaining');
   }
   
 
@@ -2975,31 +3002,31 @@ window.startSessionTracking = function() {
         if (ytDrift > 15) {
             leftFill.style.width = `${watchedPct.toFixed(2)}%`;
             rightFill.style.width = `${remPct.toFixed(2)}%`;
-            leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
-            rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+            setPercentText(leftPercentEl, formatPercent(watchedPct), 'Watched');
+            setPercentText(rightPercentEl, formatPercent(remPct), 'Remaining');
         } else {
             leftFill.style.width = '100%';
             rightFill.style.width = '0%';
-            leftPercentEl.textContent = '100 %   Watched';
-            rightPercentEl.textContent = '0 %   Remaining';
+            setPercentText(leftPercentEl, '100', 'Watched');
+            setPercentText(rightPercentEl, '0', 'Remaining');
         }
     } else {
         //   Normal  VOD  Percentage  Logic
         if (cur === 0) {
             leftFill.style.width = '0%';
             rightFill.style.width = '100%';
-            leftPercentEl.textContent = '0 %   Watched';
-            rightPercentEl.textContent = '100 %   Remaining';
+            setPercentText(leftPercentEl, '0', 'Watched');
+            setPercentText(rightPercentEl, '100', 'Remaining');
         } else if (Math.abs(cur - dur) < 0.01 || watchedPct >= 100) {
             leftFill.style.width = '100%';
             rightFill.style.width = '0%';
-            leftPercentEl.textContent = '100 %   Watched';
-            rightPercentEl.textContent = '0 %   Remaining';
+            setPercentText(leftPercentEl, '100', 'Watched');
+            setPercentText(rightPercentEl, '0', 'Remaining');
         } else {
             leftFill.style.width = `${watchedPct.toFixed(3)}%`;  
             rightFill.style.width = `${remPct.toFixed(3)}%`;
-            leftPercentEl.textContent = `${formatPercent(watchedPct)} %   Watched`;
-            rightPercentEl.textContent = `${formatPercent(remPct)} %   Remaining`;
+            setPercentText(leftPercentEl, formatPercent(watchedPct), 'Watched');
+            setPercentText(rightPercentEl, formatPercent(remPct), 'Remaining');
         }
     }
 
