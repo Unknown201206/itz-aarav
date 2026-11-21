@@ -736,7 +736,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
+      gap: 3px;                    /*   Space  Between  Timer  &  Label   (  Use  0px – 2px  To  Bring  Closer  )   */
       padding: 10px 10px;          /*   8px  =  Top  &  Bottom  Padding  ,,   10px  =  Left  &  Right  Padding   */
       border-radius: 12px;
       background: var(--neo-surface);
@@ -746,6 +746,7 @@
     .session-time {
       font-size: var(--session-time-size);
       font-weight: var(--session-time-weight);
+      line-height: 1.2;                      /*   Kills  Inherited  20px - 28px  Line - Height  From  Body   */
       color: #0f172a;                        /*   Light  Mode  Timer  Color   (  Change  Freely  )   */
       letter-spacing: 0.4px;
       font-variant-numeric: tabular-nums;
@@ -757,6 +758,7 @@
     .session-label {
       font-size: var(--session-label-size);
       font-weight: var(--session-label-weight);
+      line-height: 1.2;                      /*   Kills  Inherited  20px - 28px  Line - Height  From  Body   */
       color: #102a66;                        /*   Light  Mode  Label  Color   (  Change  Freely  )   */
       letter-spacing: 0.3px;
     }
@@ -996,7 +998,7 @@
 <!--   Header   -->
 <header class="pt-3 mb-2 text-center">
    
-    <h1 class="text-lg sm:text-xl md:text-2xl font-bold">itz&nbsp;&nbsp;Aarav</h1>
+    <h1 class="text-base sm:text-lg md:text-xl font-bold">itz&nbsp;&nbsp;Aarav</h1>
 
     <div class="px-4 pb-1 flex justify-between items-center mt-4 mb-4">
       
@@ -1022,7 +1024,7 @@
 <!-- Greeting -->
 <div class="flex flex-col items-center mb-6">
   <img src="feather-transparent.png" alt="Feather" class="w-36 sm:w-40 md:w-44 max-h-20 object-contain -mb-6 rotate-[-25deg] scale-x-[0.9] -ml-1">
-  <h2 class="radhe-title text-l sm:text-xl md:text-2xl mt-[-1]">.......&nbsp;&nbsp;!!&nbsp;&nbsp;&nbsp;राधे&nbsp;&nbsp;राधे&nbsp;&nbsp;&nbsp;!!&nbsp;&nbsp;.......</h2>
+  <h2 class="radhe-title text-sm sm:text-base md:text-lg -mt-1">.......&nbsp;&nbsp;!!&nbsp;&nbsp;&nbsp;राधे&nbsp;&nbsp;राधे&nbsp;&nbsp;&nbsp;!!&nbsp;&nbsp;.......</h2>
 </div>
 
 <!-- Player -->
@@ -1145,7 +1147,7 @@
   
 
 <!--   Current  Session  Card   -->
-<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mt-1.7 mb-[25px]">
+<div id="sessionCard" class="mx-auto w-full max-w-4xl px-4 mt-2 mb-[25px]">
   <!--
     NOTE: this inner markup is intentionally minimal and semantic.
     JS expects the elements with IDs:
