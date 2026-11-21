@@ -1400,16 +1400,21 @@ function unwrapPlayerWrapperUrl(inputUrl) {
 const safeVideoID = escapeHTML(videoID);
 let rawVideoUrl = "";
 if (video) {
-  try {
-    rawVideoUrl = decodeURIComponent(video).trim();
-  } catch {
-    rawVideoUrl = video.trim();
+  rawVideoUrl = video.trim();
+  //   Only  Decode  Again  if  The  URL  Was  Double - Encoded   (  E.g.  -  Starts  With  https%3A  )
+  if (/^https?%3A/i.test(rawVideoUrl)) {
+    try {
+      rawVideoUrl = decodeURIComponent(rawVideoUrl).trim();
+    } catch {}
   }
   if (provider !== "iframe") {
     rawVideoUrl = unwrapPlayerWrapperUrl(rawVideoUrl);
   }
+  //   Safely  Encode  Raw  Spaces  From  JSON  Without  Double - Encoding  %20  or  %26
+  rawVideoUrl = encodeURI(rawVideoUrl).replace(/%25/g, "%");
 }
-const safeVideo = escapeHTML(rawVideoUrl ? encodeURI(rawVideoUrl).replace(/%25/g, '%') : "");
+//   Use  safeVideo  Only  Inside  HTML  Strings  ;   Use  rawVideoUrl  For  fetch()  &  video.src
+const safeVideo = escapeHTML(rawVideoUrl);
 
 //   Auto - Switch  Provider  if  " html5 "   (  Or  Empty  )   Was  Passed  For  An  HLS / DASH  Stream
 if ((!provider || provider === "html5") && rawVideoUrl) {
@@ -2158,21 +2163,21 @@ else if (provider === "hls" && videoElement) {
           }
       };
 
-      //   THE  302  REDIRECT  BYPASS   :   Pre-resolve Archive.org URLs using a fast HEAD request
-      if (safeVideo.includes('archive.org')) {
-          fetch(safeVideo, { method: 'HEAD' })
+      //   THE  302  REDIRECT  BYPASS   :   Pre - Resolve  Archive.org  URLs  Using  a  Fast  Head  Request
+      if (rawVideoUrl.includes('archive.org')) {
+          fetch(rawVideoUrl, { method: 'HEAD' })
             .then(response => {
-                //   response.url contains the final direct iaXXXXX.us.archive.org node!
-                videoElement.src = response.url; 
+                //   response.url  Contains  The  Final  Direct  iaXXXXX.us.archive.org  Node  !!
+                videoElement.src = response.url;
                 setupVideoLoad();
             })
             .catch(err => {
-                //   Fallback just in case network blocks the fetch
-                videoElement.src = safeVideo;
+                //   Fallback  Just  in  Case  Network  Blocks  The  Fetch
+                videoElement.src = rawVideoUrl;
                 setupVideoLoad();
             });
       } else {
-          videoElement.src = safeVideo;
+          videoElement.src = rawVideoUrl;
           setupVideoLoad();
       }
   }
