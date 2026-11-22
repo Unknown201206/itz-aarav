@@ -1761,31 +1761,98 @@ if (isDrmOrDash && videoElement) {
 
           if (!ch) throw new Error(`Channel "${channelId || 'default'}" not found in API`);
 
-          //   Fresh  API  Values  Always  Take  Priority  Over  Stale  HTML  Fallbacks
-          const freshUrl = ch.stream_url || ch.streamUrl || ch.mpd || ch.m3u8 || ch.hls || ch.manifest || ch.url || ch.link || "";
-          if (freshUrl) finalStreamUrl = freshUrl;
+          //   Universal  Recursive  Channel  Scanner   (  Zero  Hardcoded  Site  Field  Names  )
+          const visited = new WeakSet();
+          let discoveredUrl = "";
+          let discoveredCookie = "";
+          let discoveredReferer = "";
+          let discoveredUA = "";
+          let discoveredLicense = "";
 
-          const freshCookie = ch.cookie || ch.token || ch.hdnea || "";
-          if (freshCookie) resolvedCookie = freshCookie;
+          function scanChannelNode(node, depth = 0) {
+            if (!node || depth > 5) return;
 
-          if (ch.referer || ch.referrer) resolvedReferer = ch.referer || ch.referrer;
-          if (ch.user_agent || ch.userAgent || ch.ua) resolvedUA = ch.user_agent || ch.userAgent || ch.ua;
+            if (typeof node === "string") {
+              const s = node.trim();
+              if (!s) return;
 
-          const freshLic = ch.license_url || ch.licenseUrl || ch.license || "";
-          if (freshLic) resolvedLicenseUrl = freshLic;
-
-          //   Always  Merge  Fresh  API  DRM  Keys  On  Top  of  Fallback  URL  Keys
-          if (Array.isArray(ch.sonuxs) && ch.sonuxs.length > 0) addClearKeys(ch.sonuxs);
-          const kidField = ch.key_id || ch.keyId || ch.kid;
-          if (kidField && ch.key && typeof ch.key === "string" && !ch.key.includes(":")) {
-            addClearKeys(`${kidField}:${ch.key}`);
-          }
-          [ch.clearKeys, ch.drm, ch.drmKeys, ch.drm_keys, ch.keys, ch.key].forEach(k => {
-            if (k && !(kidField && k === ch.key && typeof k === "string" && !k.includes(":"))) {
-              addClearKeys(k);
+              //   Any  "kid:key"  ClearKey  Pair  Anywhere  in  The  Object
+              if (/^[0-9a-f-]{32,36}:[0-9a-f-]{32,36}$/i.test(s)) {
+                addClearKeys(s);
+                return;
+              }
+              //   Fallback  Stream  URL  Discovery   (  Skips  Image / Logo  URLs  )
+              if (!discoveredUrl && /^https?:\/\//i.test(s) && /\.(?:mpd|m3u8)(?:\?|$)/i.test(s)) {
+                discoveredUrl = s;
+              }
+              //   Fallback  Akamai / JioTV  Token  Discovery
+              if (!discoveredCookie && (/__hdnea/i.test(s) || (s.includes("exp=") && s.includes("hmac=")))) {
+                discoveredCookie = s;
+              }
+              return;
             }
-          });
+
+            if (Array.isArray(node)) {
+              node.forEach(item => scanChannelNode(item, depth + 1));
+              return;
+            }
+
+            if (typeof node === "object") {
+              if (visited.has(node)) return;
+              visited.add(node);
+
+              //   Pair  of  Separate  kid + key  Fields  At  Any  Nesting  Level
+              const kidVal = node.key_id || node.keyId || node.kid;
+              const keyVal = node.drm_key || node.drmKey || node.key;
+              if (typeof kidVal === "string" && typeof keyVal === "string" && !keyVal.includes(":")) {
+                const k1 = kidVal.replace(/-/g, "").trim();
+                const k2 = keyVal.replace(/-/g, "").trim();
+                if (/^[0-9a-f]{32}$/i.test(k1) && /^[0-9a-f]{32}$/i.test(k2)) {
+                  addClearKeys(`${k1}:${k2}`);
+                }
+              }
+
+              for (const [k, v] of Object.entries(node)) {
+                const lk = k.toLowerCase();
+
+                //   Direct  { "32hex": "32hex" }  ClearKey  Map
+                if (typeof v === "string" && /^[0-9a-f-]{32,36}$/i.test(k) && /^[0-9a-f-]{32,36}$/i.test(v.trim())) {
+                  addClearKeys(`${k}:${v}`);
+                  continue;
+                }
+
+                //   Known  Semantic  Fields   (  Works  Even  Inside  Nested  "headers"  or  "drm"  Objects  )
+                if (typeof v === "string" && v.trim()) {
+                  const val = v.trim();
+                  if (!discoveredUrl && /^(stream_url|streamurl|mpd|m3u8|hls|manifest|play_url|playurl|url|link|src)$/.test(lk) && /^https?:\/\//i.test(val) && !/\.(?:png|jpe?g|webp|gif|svg|ico)(\?|$)/i.test(val)) {
+                    discoveredUrl = val;
+                  } else if (!discoveredCookie && /^(cookie|token|hdnea|auth_token)$/.test(lk)) {
+                    discoveredCookie = val;
+                  } else if (!discoveredReferer && /^(referer|referrer)$/.test(lk) && /^https?:\/\//i.test(val)) {
+                    discoveredReferer = val;
+                  } else if (!discoveredUA && /^(user-agent|user_agent|useragent|ua)$/.test(lk)) {
+                    discoveredUA = val;
+                  } else if (!discoveredLicense && /^(license_url|licenseurl|license|widevine|com\.widevine\.alpha)$/.test(lk) && /^https?:\/\//i.test(val)) {
+                    discoveredLicense = val;
+                  }
+                }
+
+                //   Recurse  into  Every  Property   (  Automatically  Finds  Arrays  Like  sportlink  ,,   sonuxs  ,,   keys  ,,   etc.  )
+                scanChannelNode(v, depth + 1);
+              }
+            }
+          }
+
+          scanChannelNode(ch);
+
+          if (discoveredUrl) finalStreamUrl = discoveredUrl;
+          if (discoveredCookie) resolvedCookie = discoveredCookie;
+          if (discoveredReferer) resolvedReferer = discoveredReferer;
+          if (discoveredUA) resolvedUA = discoveredUA;
+          if (discoveredLicense) resolvedLicenseUrl = discoveredLicense;
           hasDrmKeys = Object.keys(clearKeysMap).length > 0;
+
+          console.log(`[  API  ]   Matched  Channel  :  "${ch.name   ||   ch.title   ||   ch.id   ||   'default'}" (ID  :   ${ch.id   ||   channelId   ||   'first'})   |   Keys  Found  :   ${Object.keys(clearKeysMap).length}`);
 
           const chTitle = ch.name || ch.title;
           if (chTitle && !title) {
@@ -1910,10 +1977,10 @@ if (isDrmOrDash && videoElement) {
 
           let targetUrl = request.uris[0];
 
-          //   A )  Properly  Append  Akamai / JioTV  __hdnea__  Token  To  Query  String
+          //   A )  Properly  Append  Akamai / JioTV  Token   (  Supports  __hdnea=  ,,   __hdnea_=  ,,   __hdnea__=  ,,   &  Raw  Token  )
           if (resolvedCookie) {
             const cleanCookie = resolvedCookie.trim();
-            const hdneaMatch = cleanCookie.match(/(__hdnea__?=[^;\s]+)/i);
+            const hdneaMatch = cleanCookie.match(/(__hdnea(?:__|_)?=[^;\s]+)/i);
             const isRawAkamai = cleanCookie.includes("exp=") && cleanCookie.includes("hmac=");
 
             if ((hdneaMatch || isRawAkamai) && !targetUrl.includes("__hdnea")) {
