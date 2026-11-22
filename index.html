@@ -862,15 +862,30 @@
         if (clean && !arr.includes(clean)) arr.push(clean);
       };
 
+      const decodeMaybeBase64Url = (val) => {
+        if (!val) return '';
+        const trimmed = String(val).trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        if (/^[A-Za-z0-9+/=]{16,}$/.test(trimmed)) {
+          try {
+            const decoded = atob(trimmed).trim();
+            if (/^https?:\/\//i.test(decoded)) return decoded;
+          } catch {}
+        }
+        return '';
+      };
+
       const foundSummary = [];
       const foundLines = [];
       const conflictLines = [];
       const missingLines = [];
       const mismatchLines = [];
 
-      //   0.  Parse  Optional  Source  Page  URL   (  Captures  ?id= / ?ch= / ?channel=  &  Origin  )
+      //   0.  Parse  Optional  Source  Page  URL   (  Captures  ?url= / ?src= / ?file= / ?id= / ?ch=  &  Origin  )
       let pageUrlId = '';
       let pageUrlOrigin = '';
+      let pageUrlStream = '';
+      let pageUrlApi = '';
       const candidatePageUrl = pageUrlRaw || (
         rawLinkInput.value.trim() &&
         !/\.(m3u8|mpd|mp4|webm|ogg|mov|json)(\?|$)/i.test(rawLinkInput.value.trim())
@@ -886,54 +901,95 @@
             pu.searchParams.get('ch') ||
             pu.searchParams.get('channel') ||
             pu.searchParams.get('channel_id') ||
-            pu.searchParams.get('stream') ||
             pu.searchParams.get('c') || ''
           ).trim();
+
+          const rawParamApi = pu.searchParams.get('api') || pu.searchParams.get('json') || '';
+          const decodedApi = decodeMaybeBase64Url(rawParamApi);
+          if (decodedApi) pageUrlApi = decodedApi;
+
+          const streamParamKeys = ['url', 'src', 'file', 'link', 'source', 'stream', 'm3u8', 'mpd', 'video', 'play'];
+          for (const key of streamParamKeys) {
+            const rawVal = pu.searchParams.get(key);
+            const resolvedVal = decodeMaybeBase64Url(rawVal);
+            if (resolvedVal) {
+              if (/\.json(?:\?|$)/i.test(resolvedVal) && !pageUrlApi) {
+                pageUrlApi = resolvedVal;
+              } else if (!pageUrlStream) {
+                pageUrlStream = resolvedVal;
+              }
+            }
+          }
         } catch {}
       }
 
-      //   1.  JSON / Channel  API  URLs   (  Matches  var API = "..."  ,,   apiUrl  ,,   fetch("...json")  ,,   Any  .json  Endpoint  )
+      //   Normalize  Escaped  Slashes  &  Inline  Base64  Strings  Before  Scanning  HTML
+      const cleanSrc = src
+        .replace(/\\\//g, '/')
+        .replace(/\\u002f/gi, '/')
+        .replace(/atob\s*\(\s*["']([A-Za-z0-9+/=]{16,})["']\s*\)/gi, (_, b64) => {
+          const dec = decodeMaybeBase64Url(b64);
+          return dec ? `"${dec}"` : _;
+        });
+
+      //   1.  JSON / Channel  API  URLs   (  Page  URL  ?api= / ?url=.json  ,,   var API = "..."  ,,   Any  .json  Endpoint  )
       const apiCandidates = [];
-      for (const m of src.matchAll(/\b(?:api|apiUrl|api_url|channelApi|channelsUrl|playlistUrl|jsonUrl|dataUrl|endpoint)\s*[:=]\s*["'`](https?:\/\/[^"'`<>\s]+)["'`]/gi)) {
+      if (pageUrlApi) uniquePush(apiCandidates, pageUrlApi);
+      for (const m of cleanSrc.matchAll(/\b(?:api|apiUrl|api_url|channelApi|channelsUrl|playlistUrl|jsonUrl|dataUrl|endpoint)\s*[:=]\s*["'`](https?:\/\/[^"'`<>\s]+)["'`]/gi)) {
         uniquePush(apiCandidates, m[1]);
       }
-      for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/gi)) {
+      for (const m of cleanSrc.matchAll(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/gi)) {
         if (!/(?:manifest|package|tsconfig|lottie|schema|font)\.json/i.test(m[0])) {
           uniquePush(apiCandidates, m[0]);
         }
       }
 
-      //   2.  Direct  Stream  URLs   (  .m3u8  ,,   .mpd  ,,   or  Direct  .mp4 / .webm  Fallback  )
-      const streamCandidates = [];
-      for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/gi)) {
-        uniquePush(streamCandidates, m[0]);
+      //   2.  Direct  Stream  URLs   (  Page  URL  ?url=  Prioritized  Over  HTML  Fallbacks  ,,   .m3u8  ,,   .mpd  ,,   .mp4 / .webm  )
+      const htmlStreamCandidates = [];
+      for (const m of cleanSrc.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/gi)) {
+        uniquePush(htmlStreamCandidates, m[0]);
       }
-      if (!streamCandidates.length) {
-        for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:mp4|webm)(?:\?[^\s"'`<>]*)?/gi)) {
-          uniquePush(streamCandidates, m[0]);
+      if (!htmlStreamCandidates.length) {
+        for (const m of cleanSrc.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:mp4|webm)(?:\?[^\s"'`<>]*)?/gi)) {
+          uniquePush(htmlStreamCandidates, m[0]);
+        }
+      }
+      if (!htmlStreamCandidates.length && pageUrlOrigin) {
+        for (const m of cleanSrc.matchAll(/["'](\/[^"'`<>\s]+\.(?:m3u8|mpd|mp4|webm)(?:\?[^"'`<>\s]*)?)["']/gi)) {
+          try { uniquePush(htmlStreamCandidates, new URL(m[1], pageUrlOrigin).href); } catch {}
         }
       }
 
+      const streamCandidates = [];
+      if (pageUrlStream) uniquePush(streamCandidates, pageUrlStream);
+      htmlStreamCandidates.forEach(u => uniquePush(streamCandidates, u));
+
       const selectedApi = apiCandidates[0] || '';
       const selectedStream = streamCandidates[0] || '';
+      const readsDynamicUrlStream = /URLSearchParams\s*\(\s*(?:window\.)?location\.search\s*\)\.get\s*\(\s*["'](url|src|file|link|source|stream|m3u8|mpd|video|play)["']\s*\)/i.exec(cleanSrc);
 
       if (selectedApi) {
         rawLinkInput.value = selectedApi;
         foundSummary.push('API');
-        foundLines.push(`•   API  URL  :  ${selectedApi}`);
+        foundLines.push(`•   API  URL  :  ${selectedApi}${pageUrlApi ? ' (  From  Source  Page  URL  )' : ''}`);
       } else if (selectedStream) {
         rawLinkInput.value = selectedStream;
         foundSummary.push('Stream');
-        foundLines.push(`•   Stream  URL  :  ${selectedStream}`);
+        foundLines.push(`•   Stream  URL  :  ${selectedStream}${pageUrlStream ? ' (  From  Source  Page  URL  )' : ''}`);
       } else {
         missingLines.push('•   Stream  /  API  URL  :  None  Found  in  HTML  .');
       }
 
+      if (pageUrlStream && htmlStreamCandidates.length && !htmlStreamCandidates.includes(pageUrlStream)) {
+        mismatchLines.push(`•   Dynamic  Page  URL  Prioritized  :  Used   "?url="   From  Source  Page  URL   (  ${pageUrlStream}  )  ;   Ignored  HTML's  Hardcoded  Fallback   (  ${htmlStreamCandidates[0]}  )  .`);
+      } else if (!pageUrlStream && readsDynamicUrlStream && selectedStream) {
+        mismatchLines.push(`•   Warning   —   Fallback  URL  Extracted  :  This  HTML  Reads   "?${readsDynamicUrlStream[1]}=..."   Dynamically  From  The  Browser  URL  !!   Because  No  Page  URL  Was  Pasted  Above  ,,   Only  The  HTML's  Hardcoded  Fallback   (  ${selectedStream}  )   Was  Extracted  .`);
+      } else if (streamCandidates.length > 1) {
+        conflictLines.push(`•   Multiple  Different  Stream  URLs   (  ${streamCandidates.length}  )   —   Selected  #1   :\n  ${streamCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
+      }
+
       if (apiCandidates.length > 1) {
         conflictLines.push(`•   Multiple  Different  API  URLs   (  ${apiCandidates.length}  )   —   Selected  #1   :\n  ${apiCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
-      }
-      if (streamCandidates.length > 1) {
-        conflictLines.push(`•   Multiple  Different  Stream  URLs   (  ${streamCandidates.length}  )   —   Selected  #1   :\n  ${streamCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
       }
       if (selectedApi && selectedStream) {
         mismatchLines.push(`•   Both  an  API  URL  &  a  Direct  Stream  URL  Exist  in  This  HTML  .   Prioritized  API   (  ${selectedApi}  )  ;   Static  Stream  Was  :  ${selectedStream}`);
@@ -941,10 +997,10 @@
 
       //   3.  Channel  ID   (  Page  URL  ?id=  ,,   Hardcoded  JS  Var  ,,   API  Query  Param  )
       const htmlIdCandidates = [];
-      for (const m of src.matchAll(/\b(?:channelId|channel_id|channelKey|streamId|chId|activeChannel)\s*[:=]\s*["']([^"'\s<>]{1,64})["']/gi)) {
+      for (const m of cleanSrc.matchAll(/\b(?:channelId|channel_id|channelKey|streamId|chId|activeChannel)\s*[:=]\s*["']([^"'\s<>]{1,64})["']/gi)) {
         uniquePush(htmlIdCandidates, decodeURIComponent(m[1]));
       }
-      for (const m of src.matchAll(/fetchChannel\s*\(\s*["']([^"'\s<>]{1,64})["']\s*\)/gi)) {
+      for (const m of cleanSrc.matchAll(/fetchChannel\s*\(\s*["']([^"'\s<>]{1,64})["']\s*\)/gi)) {
         uniquePush(htmlIdCandidates, decodeURIComponent(m[1]));
       }
       if (selectedApi) {
@@ -952,7 +1008,7 @@
         if (apiIdMatch && apiIdMatch[1]) uniquePush(htmlIdCandidates, decodeURIComponent(apiIdMatch[1]));
       }
 
-      const readsDynamicUrlId = /URLSearchParams\s*\(\s*(?:window\.)?location\.search\s*\)\.get\s*\(\s*["']([^"']+)["']\s*\)/i.exec(src);
+      const readsDynamicUrlId = /URLSearchParams\s*\(\s*(?:window\.)?location\.search\s*\)\.get\s*\(\s*["'](id|ch|channel|channel_id|c)["']\s*\)/i.exec(cleanSrc);
       const selectedChannelId = pageUrlId || htmlIdCandidates[0] || '';
 
       if (selectedChannelId) {
@@ -971,9 +1027,9 @@
         conflictLines.push(`•   Multiple  Different  Channel  IDs  in  HTML   (  ${htmlIdCandidates.length}  )  :   ${htmlIdCandidates.join(', ')}   —   Selected   "${selectedChannelId}"  .`);
       }
 
-      //   4.  Referer
+      //   4.  Referer   (  Explicit  HTML  Referer  ,,   or  Auto - Fallback  To  Source  Page  URL  Origin  )
       const refCandidates = [];
-      for (const m of src.matchAll(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/gi)) {
+      for (const m of cleanSrc.matchAll(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/gi)) {
         uniquePush(refCandidates, m[1]);
       }
       if (refCandidates.length) {
@@ -983,13 +1039,17 @@
         if (refCandidates.length > 1) {
           conflictLines.push(`•   Multiple  Different  Referers   (  ${refCandidates.length}  )   —   Selected   #1   :\n  ${refCandidates.map((r, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${r}`).join('\n  ')}`);
         }
+      } else if (pageUrlOrigin) {
+        document.getElementById('customReferer').value = pageUrlOrigin;
+        foundSummary.push('Referer');
+        foundLines.push(`•   Referer  :  ${pageUrlOrigin} (  From  Source  Page  URL  Origin  )`);
       } else {
         missingLines.push('•   Referer  :   Not  Found  in  HTML  .');
       }
 
       //   5.  User - Agent
       const uaCandidates = [];
-      for (const m of src.matchAll(/["']?(?:user-agent|userAgent|user_agent)["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/gi)) {
+      for (const m of cleanSrc.matchAll(/["']?(?:user-agent|userAgent|user_agent)["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/gi)) {
         uniquePush(uaCandidates, m[1]);
       }
       if (uaCandidates.length) {
@@ -1005,10 +1065,10 @@
 
       //   6.  Cookie  /  __hdnea  Token
       const cookieCandidates = [];
-      for (const m of src.matchAll(/__hdnea(?:__|_)?=[^\s"'`&;]+/gi)) {
+      for (const m of cleanSrc.matchAll(/__hdnea(?:__|_)?=[^\s"'`&;]+/gi)) {
         if (m[0].length > 15) uniquePush(cookieCandidates, m[0]);
       }
-      for (const m of src.matchAll(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{12,})["']/gi)) {
+      for (const m of cleanSrc.matchAll(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{12,})["']/gi)) {
         if (!/^[a-zA-Z0-9_]+\s*\(/.test(m[1])) uniquePush(cookieCandidates, m[1]);
       }
       if (cookieCandidates.length) {
@@ -1026,18 +1086,18 @@
 
       //   7.  DRM  :  ClearKey  Pairs  OR  Widevine  License  URL
       const licenseCandidates = [];
-      for (const m of src.matchAll(/(?:com\.widevine\.alpha|licenseUrl|license_url)\s*["']?\s*[:=]\s*["'](https?:\/\/[^"']+)["']/gi)) {
+      for (const m of cleanSrc.matchAll(/(?:com\.widevine\.alpha|licenseUrl|license_url)\s*["']?\s*[:=]\s*["'](https?:\/\/[^"']+)["']/gi)) {
         uniquePush(licenseCandidates, m[1]);
       }
       const keys = [];
-      for (const m of src.matchAll(/([0-9a-f]{32}:[0-9a-f]{32})/gi)) {
+      for (const m of cleanSrc.matchAll(/([0-9a-f]{32}:[0-9a-f]{32})/gi)) {
         uniquePush(keys, m[1].toLowerCase());
       }
-      for (const m of src.matchAll(/["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi)) {
+      for (const m of cleanSrc.matchAll(/["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi)) {
         uniquePush(keys, `${m[1]}:${m[2]}`.toLowerCase());
       }
-      const sepKid = src.match(/["']?(?:key_id|keyId|kid)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
-      const sepKey = src.match(/["']?(?:drm_key|drmKey|key)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
+      const sepKid = cleanSrc.match(/["']?(?:key_id|keyId|kid)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
+      const sepKey = cleanSrc.match(/["']?(?:drm_key|drmKey|key)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
       if (sepKid && sepKey) {
         uniquePush(keys, `${sepKid[1].replace(/-/g, '')}:${sepKey[1].replace(/-/g, '')}`.toLowerCase());
       }
@@ -1066,7 +1126,7 @@
       if (mismatchLines.length) reportSections.push('🔎   MISMATCHES  /  NOTES   :\n' + mismatchLines.join('\n'));
       if (missingLines.length) reportSections.push('❌   NOT  FOUND  /  MISSING   :\n' + missingLines.join('\n'));
 
-      if ((refCandidates.length || uaCandidates.length || cookieCandidates.length) && !document.getElementById('useProxyToggle').checked) {
+      if ((refCandidates.length || pageUrlOrigin || uaCandidates.length || cookieCandidates.length) && !document.getElementById('useProxyToggle').checked) {
         reportSections.push('💡   TIP  :  This  Page  Sets  Custom  Headers   (  Referer / UA / Cookie  )  .   Try  Direct  First  ;   if  You  See  HTTP  403  ,,   Tick   " Use  Edge  Proxy   (  &proxy=1  )".');
       }
 
@@ -1085,6 +1145,7 @@
         showToast('No  Stream  URL  or  Headers  Found   —   Check  Report');
       }
     }
+    
 
     /*   ===================================================================================================================
                    SMART  URL  PARSER   (  YOUTUBE  ,,   JSON  API  ,,   WRAPPED  M3U8  ,,   DASH  ,,   HTML5  )
