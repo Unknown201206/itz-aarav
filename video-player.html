@@ -1316,9 +1316,37 @@ const rawKeyParams = [
 const clearKeysMap = {};
 function addClearKeys(input) {
   if (!input) return;
-  const list = Array.isArray(input) ? input : decodeURIComponent(String(input)).split(/[,|\s]+/);
-  list.forEach(pair => {
-    if (!pair || typeof pair !== "string") return;
+
+  //   1.  Plain  Object  Map   (  E.g.  -  { "kidHex": "keyHex" }  or  { kid: "...", key: "..." }  )
+  if (typeof input === "object" && !Array.isArray(input)) {
+    if (input.kid && input.key) {
+      const k1 = String(input.kid).replace(/-/g, "").trim().toLowerCase();
+      const k2 = String(input.key).replace(/-/g, "").trim().toLowerCase();
+      if (k1 && k2) clearKeysMap[k1] = k2;
+      return;
+    }
+    Object.entries(input).forEach(([kid, key]) => {
+      if (typeof key !== "string") return;
+      const cleanKid = String(kid).replace(/-/g, "").trim().toLowerCase();
+      const cleanKey = key.replace(/-/g, "").trim().toLowerCase();
+      if (/^[0-9a-f]{32}$/i.test(cleanKid) && /^[0-9a-f]{32}$/i.test(cleanKey)) {
+        clearKeysMap[cleanKid] = cleanKey;
+      }
+    });
+    return;
+  }
+
+  //   2.  Array  of  Strings  OR  Array  of  Objects
+  if (Array.isArray(input)) {
+    input.forEach(item => addClearKeys(item));
+    return;
+  }
+
+  //   3.  String   (  Single  "kid:key"  OR  Comma / Pipe / Space - Separated  )
+  let str = String(input);
+  try { str = decodeURIComponent(str); } catch {}
+  str.split(/[,|\s]+/).forEach(pair => {
+    if (!pair) return;
     const idx = pair.indexOf(":");
     if (idx === -1) return;
     const cleanKid = pair.slice(0, idx).replace(/-/g, "").trim().toLowerCase();
@@ -1700,47 +1728,74 @@ if (isDrmOrDash && videoElement) {
     async function fetchChannelConfig(forceRefresh = false) {
       //   1.  Optional   :   Fetch  Channel  Config  Dynamically  From  Any  JSON  API   (  ?api=...&id=...  )
       if (apiUrl) {
-        console.log(`[  API  ]   ${forceRefresh ?  " Refreshing "  :  " Fetching "}   Channel  Config  From   ${apiUrl}`);
-        const res = await fetch(decodeURIComponent(apiUrl), { cache: "no-store" });
-        if (!res.ok) throw new Error(`API HTTP ${res.status}`);
-        const data = await res.json();
-        const channels = Array.isArray(data) ? data : (data.channels || data.data || data.items || []);
-        const ch = channelId
-          ? channels.find(c => c && (c.id === channelId || c.name === channelId))
-          : channels[0];
+        try {
+          console.log(`[ API ] ${forceRefresh ? "Refreshing" : "Fetching"} Channel Config From ${apiUrl}`);
+          const res = await fetch(decodeURIComponent(apiUrl), { cache: "no-store" });
+          if (!res.ok) throw new Error(`API  HTTP   ${res.status}`);
+          const data = await res.json();
 
-        if (!ch) throw new Error(`Channel "${channelId}" not found in API`);
-        if (forceRefresh || !finalStreamUrl) {
-          const freshUrl = ch.stream_url || ch.url || ch.mpd || "";
+          //   Support  Array  APIs  ,,   Nested  Arrays   (  channels / data / items / streams  )  ,,   OR  Keyed  Objects   (  { STEN3: {...} }  )
+          let ch = null;
+          const channels = Array.isArray(data)
+            ? data
+            : (data.channels || data.data || data.items || data.streams || null);
+
+          if (Array.isArray(channels)) {
+            if (channelId) {
+              const target = channelId.trim().toLowerCase();
+              ch = channels.find(c => c && [c.id, c.channel_id, c.channelId, c.name, c.slug, c.title]
+                .some(v => v && String(v).trim().toLowerCase() === target));
+            } else {
+              ch = channels[0];
+            }
+          } else if (data && typeof data === "object") {
+            if (channelId && data[channelId]) {
+              ch = data[channelId];
+            } else if (data.stream_url || data.streamUrl || data.url || data.mpd || data.m3u8) {
+              ch = data;
+            } else {
+              const values = Object.values(data).filter(v => v && typeof v === "object");
+              ch = values[0] || null;
+            }
+          }
+
+          if (!ch) throw new Error(`Channel "${channelId || 'default'}" not found in API`);
+
+          //   Fresh  API  Values  Always  Take  Priority  Over  Stale  HTML  Fallbacks
+          const freshUrl = ch.stream_url || ch.streamUrl || ch.mpd || ch.m3u8 || ch.hls || ch.manifest || ch.url || ch.link || "";
           if (freshUrl) finalStreamUrl = freshUrl;
-        }
-        if (forceRefresh || !resolvedCookie) {
-          const freshCookie = ch.cookie || ch.token || "";
+
+          const freshCookie = ch.cookie || ch.token || ch.hdnea || "";
           if (freshCookie) resolvedCookie = freshCookie;
-        }
-        if ((forceRefresh || !resolvedReferer) && ch.referer) resolvedReferer = ch.referer;
-        if ((forceRefresh || !resolvedUA) && ch.user_agent) resolvedUA = ch.user_agent;
-        if (forceRefresh || !resolvedLicenseUrl) {
+
+          if (ch.referer || ch.referrer) resolvedReferer = ch.referer || ch.referrer;
+          if (ch.user_agent || ch.userAgent || ch.ua) resolvedUA = ch.user_agent || ch.userAgent || ch.ua;
+
           const freshLic = ch.license_url || ch.licenseUrl || ch.license || "";
           if (freshLic) resolvedLicenseUrl = freshLic;
-        }
 
-        if (forceRefresh || !hasDrmKeys) {
-          if (Array.isArray(ch.sonuxs) && ch.sonuxs.length > 0) {
-            addClearKeys(ch.sonuxs);
+          //   Always  Merge  Fresh  API  DRM  Keys  On  Top  of  Fallback  URL  Keys
+          if (Array.isArray(ch.sonuxs) && ch.sonuxs.length > 0) addClearKeys(ch.sonuxs);
+          const kidField = ch.key_id || ch.keyId || ch.kid;
+          if (kidField && ch.key && typeof ch.key === "string" && !ch.key.includes(":")) {
+            addClearKeys(`${kidField}:${ch.key}`);
           }
-          if (ch.key_id && ch.key && !String(ch.key).includes(":")) {
-            addClearKeys(`${ch.key_id}:${ch.key}`);
-          }
-          if (ch.key || ch.drmKeys || ch.keys) {
-            addClearKeys(ch.key || ch.drmKeys || ch.keys);
-          }
+          [ch.clearKeys, ch.drm, ch.drmKeys, ch.drm_keys, ch.keys, ch.key].forEach(k => {
+            if (k && !(kidField && k === ch.key && typeof k === "string" && !k.includes(":"))) {
+              addClearKeys(k);
+            }
+          });
           hasDrmKeys = Object.keys(clearKeysMap).length > 0;
-        }
 
-        if (ch.name && !title) {
-          document.getElementById("videoTitle").textContent = ch.name;
-          document.title = ch.name;
+          const chTitle = ch.name || ch.title;
+          if (chTitle && !title) {
+            document.getElementById("videoTitle").textContent = chTitle;
+            document.title = chTitle;
+          }
+        } catch (apiErr) {
+          console.warn("[ API WARN ]", apiErr.message);
+          //   Only  Abort  if  There  is  No  Fallback  Stream  URL  Available
+          if (!finalStreamUrl) throw apiErr;
         }
       }
 
@@ -1762,21 +1817,22 @@ if (isDrmOrDash && videoElement) {
       }
     }
 
-    //   Auto - Recovery  Listener  :  Silently  Refreshes  Expired  401 / 403  Tokens  Mid - Match
+    //   Auto - Recovery  Listener  :  Silently  Refreshes  Expired  401 / 403  Tokens  OR  Rotated  4012  DRM  Keys
     shakaPlayer.addEventListener('error', async (event) => {
       const err = event.detail;
       logShakaDetail(err, "SHAKA  EVENT");
 
       const httpStatus = Array.isArray(err?.data) ? err.data[1] : null;
       const isAuthExpired = err?.code === 1001 && (httpStatus === 401 || httpStatus === 403);
+      const isKeyMissing = err?.code === 4012 || err?.code === 6007 || err?.code === 6008;
       const canRefresh = Boolean(apiUrl || cookieUrl);
       const cooldownPassed = (Date.now() - lastRefreshAt) > 30000;
 
-      if (isAuthExpired && canRefresh && !isRefreshingToken && cooldownPassed) {
+      if ((isAuthExpired || isKeyMissing) && canRefresh && !isRefreshingToken && cooldownPassed) {
         isRefreshingToken = true;
         lastRefreshAt = Date.now();
-        console.warn(`[  AUTO - RECOVERY  ]   HTTP   ${httpStatus}   Detected  .   Refreshing  Token  &  Keys  Silently   🕊️  .......`);
-        showToast("Refreshing  Live  Token   🕊️  .......");
+        console.warn(`[  AUTO - RECOVERY  ]   Error   ${err?.code}   Detected  .   Refreshing  Live  Config  Silently   🕊️  .......`);
+        showToast("Refreshing  Live  Stream   🕊️  .......");
 
         try {
           await fetchChannelConfig(true);
@@ -1788,7 +1844,7 @@ if (isDrmOrDash && videoElement) {
           }
           await shakaPlayer.load(finalStreamUrl);
           videoElement.play().catch(() => {});
-          console.log("[  AUTO - RECOVERY  ]   Stream  Resumed  With  Fresh  Token  !!");
+          console.log("[  AUTO - RECOVERY  ]   Stream  Resumed  With  Fresh  Config  !!");
         } catch (recErr) {
           logShakaDetail(recErr, "AUTO - RECOVERY  FAILED");
         } finally {
@@ -1854,20 +1910,15 @@ if (isDrmOrDash && videoElement) {
 
           let targetUrl = request.uris[0];
 
-          //   A )  Properly  Append   Akamai / JioTV __hdnea__   Token  To  Query  String   (  Fixes  .slice(10)  Bug  )
+          //   A )  Properly  Append  Akamai / JioTV  __hdnea__  Token  To  Query  String
           if (resolvedCookie) {
             const cleanCookie = resolvedCookie.trim();
-            const isAkamaiToken =
-              cleanCookie.includes("__hdnea") ||
-              (cleanCookie.includes("exp=") && cleanCookie.includes("hmac="));
+            const hdneaMatch = cleanCookie.match(/(__hdnea__?=[^;\s]+)/i);
+            const isRawAkamai = cleanCookie.includes("exp=") && cleanCookie.includes("hmac=");
 
-            if (isAkamaiToken && !targetUrl.includes("__hdnea")) {
+            if ((hdneaMatch || isRawAkamai) && !targetUrl.includes("__hdnea")) {
               const sep = targetUrl.includes("?") ? "&" : "?";
-              if (cleanCookie.startsWith("__hdnea__=") || cleanCookie.startsWith("__hdnea=")) {
-                targetUrl += sep + cleanCookie;
-              } else {
-                targetUrl += sep + "__hdnea__=" + cleanCookie;
-              }
+              targetUrl += sep + (hdneaMatch ? hdneaMatch[1] : "__hdnea__=" + cleanCookie);
             }
           }
 
