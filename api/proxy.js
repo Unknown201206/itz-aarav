@@ -76,11 +76,24 @@ export default async function handler(req) {
     });
 
     const contentType = upstream.headers.get("content-type") || "";
-    const isM3u8 =
-      contentType.toLowerCase().includes("mpegurl") ||
-      url.toLowerCase().includes(".m3u8");
+    const lowerCt = contentType.toLowerCase();
+    const lowerUrl = url.toLowerCase();
+    const isM3u8 = lowerCt.includes("mpegurl") || lowerUrl.includes(".m3u8");
+    const isMpd = lowerCt.includes("dash+xml") || lowerUrl.includes(".mpd");
 
     const resHeaders = new Headers(baseCorsHeaders);
+
+    //   Inject  <BaseURL>  Into  DASH  .mpd  Manifests  So  Relative  Segments  Resolve  Against  The  Real  CDN
+    if (upstream.ok && isMpd) {
+      let xml = await upstream.text();
+      if (xml.includes("<MPD") && !/<BaseURL>\s*https?:\/\//i.test(xml)) {
+        const finalUpstream = upstream.url || url;
+        const baseDir = finalUpstream.substring(0, finalUpstream.lastIndexOf("/") + 1).replace(/&/g, "&amp;");
+        xml = xml.replace(/(<MPD\b[^>]*>)/i, `$1<BaseURL>${baseDir}</BaseURL>`);
+      }
+      resHeaders.set("Content-Type", contentType || "application/dash+xml");
+      return new Response(xml, { status: upstream.status, headers: resHeaders });
+    }
 
     //   Rewrite  HLS  Playlists  So  Sub - Manifests  &  .ts  Chunks  Also  Stay  Proxied
     if (upstream.ok && isM3u8) {
