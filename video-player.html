@@ -6,7 +6,7 @@
 <head>  
   <meta charset="UTF-8" />  
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="referrer" content="no-referrer">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta id="theme-color-meta" name="theme-color" content="#f4f6fc" />
   <title>itz  Aarav</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -480,13 +480,17 @@
       pointer-events: auto;
     }
 
-    /* =========================================================================
-       VIEW TRANSITIONS API — 120FPS GPU-COMPOSITED CIRCLE RIPPLE
-       ========================================================================= */
+    /*   ========================================================================================
+                   VIEW  TRANSITIONS  API  —  120 FPS  GPU - COMPOSITED  CIRCLE  RIPPLE
+         ========================================================================================   */
+    ::view-transition-group(root) {
+      animation: none !important;
+      transform: none !important;
+    }
     ::view-transition-old(root),
     ::view-transition-new(root) {
-      animation: none;
-      mix-blend-mode: normal;
+      animation: none !important;
+      mix-blend-mode: normal !important;
     }
     ::view-transition-old(root) { z-index: 1; }
     ::view-transition-new(root) {
@@ -494,21 +498,21 @@
       will-change: clip-path;
     }
 
-    /* =========================================================================
-       THEME VARIABLES — LIGHT MODE (DIAGONAL TOP-RIGHT TO BOTTOM-LEFT + TIGHT SHADOWS)
-       ========================================================================= */
+    /*   ========================================================================================================================
+                   THEME  VARIABLES  —  LIGHT  MODE   (  DIAGONAL  TOP - RIGHT  TO  BOTTOM - LEFT  +  TIGHT  SHADOWS  )
+         ========================================================================================================================   */
     :root {
       --bg-base: #eef2ff;
       --text-primary: #0f172a;
       --text-secondary: #334155;
       --text-muted: #64748b;
 
-      /* White Glassmorphism */
+      /*   White  Glassmorphism   */
       --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 255, 0.76));
       --glass-border: rgba(255, 255, 255, 0.92);
       --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -1px 2px rgba(148, 163, 184, 0.14);
 
-      /* Tighter Top-Left White Highlight + Soft Bottom-Right Shadow */
+      /*   Tighter  Top - Left  White  Highlight  +  Soft  Bottom - Right  Shadow   */
       --neo-surface: #f7f9fe;
       --neo-shadow-out: 8px 8px 18px rgba(99, 102, 241, 0.14), -3px -3px 8px rgba(255, 255, 255, 0.72);
       --neo-shadow-hover: 12px 14px 26px rgba(109, 40, 217, 0.20), -4px -4px 10px rgba(255, 255, 255, 0.80);
@@ -519,7 +523,7 @@
       --live-pill-bg: rgba(255, 255, 255, 0.90);
       --live-pill-border: rgba(124, 58, 237, 0.18);
 
-      /* Diagonal Gradient: Top-Right Corner -> Bottom-Left Corner */
+      /*   Diagonal  Gradient  :  Top - Right  Corner   -->   Bottom - Left  Corner   */
       --bg-diagonal: linear-gradient(225deg, #fce7f3 0%, #ede9fe 32%, #e0e7ff 66%, #cffafe 100%);
     }
 
@@ -532,12 +536,12 @@
       --text-secondary: #cbd5e1;
       --text-muted: #94a3b8;
 
-      /* Black Glassmorphism */
+      /*  Black  Glassmorphism  */
       --glass-bg: linear-gradient(145deg, rgba(16, 21, 36, 0.84), rgba(9, 12, 22, 0.92));
       --glass-border: rgba(167, 139, 250, 0.16);
       --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.08), inset 0 -1px 2px rgba(0, 0, 0, 0.7);
 
-      /* Tighter Obsidian + Purple Neomorphism */
+      /*   Tighter  Obsidian  +  Purple  Neomorphism   */
       --neo-surface: #0b0f1b;
       --neo-shadow-out: 8px 8px 22px rgba(0, 0, 0, 0.85), -3px -3px 10px rgba(124, 58, 237, 0.12);
       --neo-shadow-hover: 12px 16px 30px rgba(0, 0, 0, 0.92), -4px -4px 14px rgba(139, 92, 246, 0.22);
@@ -548,7 +552,7 @@
       --live-pill-bg: rgba(15, 20, 35, 0.88);
       --live-pill-border: rgba(167, 139, 250, 0.25);
 
-      /* Diagonal Gradient: Top-Right Corner -> Bottom-Left Corner (Dark) */
+      /*   Diagonal  Gradient  :  Top - Right  Corner   -->   Bottom - Left  Corner   (  Dark  )   */
       --bg-diagonal: linear-gradient(225deg, #271033 0%, #151232 34%, #091326 68%, #061b26 100%);
     }
 
@@ -561,7 +565,7 @@
       overflow-x: hidden;
     }
 
-    /* Diagonal Multi-Color Background (Top-Right to Bottom-Left) */
+    /*   Diagonal  Multi - Color  Background   (  Top - Right  To  Bottom - Left  )   */
     .bg-mesh {
       position: fixed;
       inset: 0;
@@ -570,9 +574,9 @@
       background: var(--bg-diagonal);
     }
 
-    /* =========================================================================
-       HEADER, VIDEO TITLE, RADHE RADHE & NEOMORPHIC BUTTONS
-       ========================================================================= */
+    /*   ======================================================================================
+                 HEADER  ,,   VIDEO  TITLE  ,,   RADHE  RADHE  &  NEOMORPHIC  BUTTONS
+         ======================================================================================   */
     header h1 {
       font-weight: 800;
       letter-spacing: 0.01em;
@@ -586,7 +590,7 @@
       -webkit-text-fill-color: transparent;
     }
 
-    /* Video Title: Bold + Black in Light Mode, Skyblue/Lavender in Dark Mode, Preserves Spaces */
+    /*   Video  Title  :  Bold  +  Black  in  Light  Mode  ,,   Skyblue / Lavender  in  Dark  Mode  ,,   Preserves  Spaces   */
     #videoTitle {
       white-space: pre-wrap;
       font-weight: 700 !important;
@@ -601,7 +605,7 @@
       -webkit-text-fill-color: transparent !important;
     }
 
-    /* Radhe Radhe: Rich Royal Crimson-Gold in Light Mode, Warm Rose-Gold in Dark Mode */
+    /*   Radhe  Radhe  :  Rich  Royal  Crimson - Gold  in  Light  Mode  ,,   Warm  Rose - Gold  in  Dark  Mode   */
     .radhe-title {
       font-weight: 800;
       letter-spacing: 0.02em;
@@ -639,9 +643,9 @@
       box-shadow: var(--neo-shadow-in) !important;
     }
 
-    /* =========================================================================
-       PLAYER CARD — ZERO WHITE SPACE, FULL EDGE-TO-EDGE VIDEO, SHARP CORNERS
-       ========================================================================= */
+    /*   ================================================================================================================
+                   PLAYER  CARD  —  ZERO  WHITE  SPACE  ,,   FULL  EDGE - TO - EDGE  VIDEO  ,,   SHARP  CORNERS
+         ================================================================================================================   */
     #playerCard {
       aspect-ratio: 16 / 9 !important;
       padding: 0 !important;
@@ -1428,7 +1432,7 @@ if ((!provider || provider === "html5") && rawVideoUrl) {
 
 
 //   Main  Player  Load  &  Gesture  Zone  Injection   (  Using  insertAdjacentHTML  So  #playerLoader  is  Not  Destroyed  )
-if (provider === "iframe" && rawVideoUrl) {
+if (provider === "iframe" && /^https?:\/\//i.test(rawVideoUrl)) {
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video w-full h-full">
       <iframe
@@ -1624,10 +1628,10 @@ function initAllPlayerEvents(plyrInstance) {
       });
 
       //   Fixed  Skip  Logic   :   Wait  For  moov  Metadata   (  readyState >= 1  )   &  Seek  Once
-      if (!noSkip && !isDrmOrDash && player.provider !== 'youtube' && player.media && isFinite(player.media.duration)) {
+      if (!noSkip && !isDrmOrDash && player.provider !== 'youtube' && player.media) {
         let initialSkipDone = false;
         const applyInitialSkip = () => {
-          if (initialSkipDone || player.media.readyState < 1) return;
+          if (initialSkipDone || player.media.readyState < 1 || !isFinite(player.media.duration)) return;
           initialSkipDone = true;
           if (player.media.currentTime < skipSecondsFinal) {
             player.media.currentTime = skipSecondsFinal;
@@ -3564,25 +3568,25 @@ window.startSessionTracking = function() {
 })();
 
 
-//   🎊  Water Wave Effect Under Info Cards  ( Final Version )
-//   -  Smooth Continuous Wave Animation  ( No Jitter )
-//   -  Inner Water Circle Inset  ( With Gap Around It )
-//   -  Outer Ring With Configurable Color
-//   -  Water Wave Gradient Color Remains Constant
+//   🎊  Water  Wave  Effect  Under  Info  Cards   (  Final  Version  )
+//   -  Smooth  Continuous  Wave  Animation  (  No  Jitter  )
+//   -  Inner  Water  Circle  Inset   (  With  Gap  Around  it  )
+//   -  Outer  Ring  With  Configurable  Color
+//   -  Water  Wave  Gradient  Color  Remains  Constant
 function createWaveCircle(
   containerId,
-  color1 = "#6faeff",                 //   Top of Water Gradient
-  color2 = "#1d5ee9",                 //   Bottom of Water Gradient
-  ringColor = "#1d5ee9"               //   Only Outer Ring Color  ( Customizable )
+  color1 = "#6faeff",                 //   Top  of  Water  Gradient
+  color2 = "#1d5ee9",                 //   Bottom  of  Water  Gradient
+  ringColor = "#1d5ee9"               //   Only  Outer  Ring  Color   (  Customizable  )
 ) {
-  const SIZE = 60;                    //   Total SVG Size
+  const SIZE = 60;                    //   Total  SVG  Size
   const svgNS = "http://www.w3.org/2000/svg";
   const container = document.getElementById(containerId);
 
-  //   Outer Ring Radius
+  //   Outer  Ring  Radius
   const outerR = SIZE / 2 - 2;
-  //   Inner Circle Radius  ( For Water Area )  –  Slightly Smaller To Create The  " gap "
-  const innerR = outerR - 4;          //   Gap Size  =  4px , Adjust If Needed
+  //   Inner  Circle  Radius   (  For  Water  Area  )  –  Slightly  Smaller  To  Create  The  " gap "
+  const innerR = outerR - 4;          //   Gap  Size  =  4px  ,,   Adjust  if  Needed
 
   //   Create SVG Container
   const svg = document.createElementNS(svgNS, "svg");
@@ -3590,10 +3594,10 @@ function createWaveCircle(
   svg.setAttribute("height", SIZE);
   svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
 
-  //   ======  Defs  ( Gradient + Clip )  ======
+  //   ======   Defs   (  Gradient  +  Clip  )   ======
   const defs = document.createElementNS(svgNS, "defs");
 
-  //   Gradient For The Water
+  //   Gradient  For  The  Water
   const grad = document.createElementNS(svgNS, "linearGradient");
   grad.id = containerId + "grad";
   grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0");
@@ -3610,7 +3614,7 @@ function createWaveCircle(
   grad.appendChild(stop2);
   defs.appendChild(grad);
 
-  //   Clip - Path  ( Only Inside The Smaller Inner Circle )
+  //   Clip - Path   (  Only  Inside  The  Smaller  Inner  Circle  )
   const clip = document.createElementNS(svgNS, "clipPath");
   clip.id = containerId + "clip";
   const circle = document.createElementNS(svgNS, "circle");
@@ -3622,25 +3626,25 @@ function createWaveCircle(
 
   svg.appendChild(defs);
 
-  //   ======  Background Inner Circle  ======
+  //   ======   Background  Inner  Circle   ======
   const bgCircle = document.createElementNS(svgNS, "circle");
   bgCircle.setAttribute("cx", SIZE / 2);
   bgCircle.setAttribute("cy", SIZE / 2);
   bgCircle.setAttribute("r", innerR);
-  bgCircle.setAttribute("fill", "#fff");           //   White Background Behind Waves
+  bgCircle.setAttribute("fill", "#fff");             //   White  Background  Behind  Waves
   svg.appendChild(bgCircle);
 
-  //   ======  Outer Ring  ======
+  //   ======   Outer  Ring   ======
   const outerRing = document.createElementNS(svgNS, "circle");
   outerRing.setAttribute("cx", SIZE / 2);
   outerRing.setAttribute("cy", SIZE / 2);
   outerRing.setAttribute("r", outerR);
   outerRing.setAttribute("fill", "none");
-  outerRing.setAttribute("stroke", ringColor);     //   Configurable Ring Color
+  outerRing.setAttribute("stroke", ringColor);       //   Configurable  Ring  Color
   outerRing.setAttribute("stroke-width", 2);
   svg.appendChild(outerRing);
 
-  //   ======  Water Group  ( Clipped )  ======
+  //   ======   Water  Group   (  Clipped  )   ======
   const g = document.createElementNS(svgNS, "g");
   g.setAttribute("clip-path", `url(#${clip.id})`);
 
@@ -3657,14 +3661,14 @@ function createWaveCircle(
   svg.appendChild(g);
   container.appendChild(svg);
 
-  //   ======  Animation State  ======
-  let targetProgress = 0;       //   Set By .update(progress)
-  let smoothProgress = 0;       //   Lerped Value For Smooth Rise
+  //   ======   Animation  State   ======
+  let targetProgress = 0;       //   Set  By  .update(progress)
+  let smoothProgress = 0;       //   Lerped  Value  For  Smooth  Rise
   let phase1 = 0, phase2 = 0;
 
-  //   Wave Generator Function
+  //   Wave  Generator  Function
   function buildWave(width, amp, freq, phase, levelY) {
-    const step = 1;             //   Smaller  =  Smoother ,  Bigger  =  Faster Performance
+    const step = 1;             //   Smaller  =  Smoother  ,,   Bigger  =  Faster Performance
     let d = `M0 ${SIZE} `;
     for (let x = 0; x <= width; x += step) {
       const y = Math.sin((x / width) * freq * Math.PI * 2 + phase) * amp + levelY;
@@ -3694,7 +3698,7 @@ function createWaveCircle(
   }
   requestAnimationFrame(animate);
 
-  //   ======  Public API  ======
+  //   ======   Public  API   ======
   return {
     update(progress) {
       targetProgress = Math.max(0, Math.min(1, Number(progress) || 0));
@@ -3702,7 +3706,7 @@ function createWaveCircle(
   };
 }
   
-//   Init After DOM
+//   Init  After  DOM
 window.watchedWave = createWaveCircle("watchedWave", "#6faeff", "#1d5ee9", "#9c0892");           //   ✅  Pinkish  Ring
 window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "#874609");       //   ✅  Orange  Ring
 
