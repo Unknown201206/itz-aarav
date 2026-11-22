@@ -817,75 +817,108 @@
     }
 
     /*   ==============================================================================================================================
-                   HTML  SOURCE  AUTO - EXTRACTOR   (  API  ,,   M3U8 / MPD  ,,   REFERER  ,,   COOKIE  ,,   UA  ,,   DRM  )
+                   UNIVERSAL  HTML  SOURCE  AUTO - EXTRACTOR   (  API  ,,   CHANNEL  ID  ,,   M3U8 / MPD  ,,   HEADERS  ,,   DRM  )
          ==============================================================================================================================   */
     function extractFromHtml() {
       const src = document.getElementById('htmlSourceInput').value;
       if (!src || !src.trim()) return showToast('Paste page HTML first');
 
+      //   Reset  Previous  Auto - Extracted  Fields  So  Stale  Values  Never  Mix  Across  Pastes
+      document.getElementById('channelId').value = '';
+      document.getElementById('drmKey').value = '';
+      document.getElementById('customReferer').value = '';
+      document.getElementById('customCookie').value = '';
+      document.getElementById('customUa').value = '';
+
       const found = [];
 
-      //   1.  JSON  API   (  E.g.  -  sports.json  )
-      const apiMatch = src.match(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/i);
+      //   1.  JSON / Channel  API  URL   (  Explicit  apiUrl  Variable  OR  .json  Endpoint  )
+      const explicitApiMatch = src.match(/(?:apiUrl|api_url|channelApi|channelsUrl|playlistUrl|jsonUrl)\s*[:=]\s*["'](https?:\/\/[^"'`<>]+)["']/i);
+      const jsonMatches = [...src.matchAll(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/gi)]
+        .map(x => x[0])
+        .filter(u => !/(?:manifest|package|tsconfig|lottie|schema)\.json/i.test(u));
+      const apiUrlFound = explicitApiMatch ? explicitApiMatch[1] : (jsonMatches[0] || '');
+
       //   2.  Direct  .m3u8  or  .mpd  Stream
       const streamMatch = src.match(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/i);
 
-      if (!rawLinkInput.value.trim()) {
-        if (apiMatch) {
-          rawLinkInput.value = apiMatch[0];
-          found.push('API');
-        } else if (streamMatch) {
-          rawLinkInput.value = streamMatch[0];
-          found.push('Stream');
-        }
+      if (apiUrlFound) {
+        rawLinkInput.value = apiUrlFound;
+        found.push('API');
+      } else if (streamMatch) {
+        rawLinkInput.value = streamMatch[0];
+        found.push('Stream');
       }
 
-      //   3.  Referer
+      //   3.  Channel  ID   (  channelId:"STEN3"  ,,   channel_id:"..."  ,,   fetchChannel("...")  ,,   ?id=...  )
+      const channelIdMatch =
+        src.match(/(?:channelId|channel_id|channelKey|streamId|chId)\s*[:=]\s*["']([^"'\s<>]{1,64})["']/i) ||
+        src.match(/fetchChannel\s*\(\s*["']([^"'\s<>]{1,64})["']\s*\)/i) ||
+        (apiUrlFound && apiUrlFound.match(/[?&](?:id|channel|ch)=([^&#]+)/i));
+      if (channelIdMatch && channelIdMatch[1]) {
+        document.getElementById('channelId').value = decodeURIComponent(channelIdMatch[1].trim());
+        found.push(`ID: ${channelIdMatch[1].trim()}`);
+      }
+
+      //   4.  Referer
       const refMatch = src.match(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/i);
       if (refMatch) {
         document.getElementById('customReferer').value = refMatch[1];
         found.push('Referer');
       }
 
-      //   4.  User - Agent
-      const uaMatch = src.match(/["']?user-agent["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/i);
+      //   5.  User - Agent
+      const uaMatch = src.match(/["']?(?:user-agent|userAgent|user_agent)["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/i);
       if (uaMatch) {
         document.getElementById('customUa').value = uaMatch[1];
         found.push('UA');
       }
 
-      //   5.  Cookie  /  __hdnea__ token
-      const hdneaMatch = src.match(/__hdnea__=[^\s"'`&;]+/i);
-      const cookieMatch = src.match(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{8,})["']/i);
-      if (hdneaMatch) {
+      //   6.  Cookie  /  __hdnea__  Token
+      const hdneaMatch = src.match(/__hdnea__?=[^\s"'`&;]+/i);
+      const cookieMatch = src.match(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{12,})["']/i);
+      if (hdneaMatch && hdneaMatch[0].length > 15) {
         document.getElementById('customCookie').value = hdneaMatch[0];
         found.push('Token');
-      } else if (cookieMatch) {
+      } else if (cookieMatch && !/^[a-zA-Z0-9_]+\s*\(/.test(cookieMatch[1])) {
         document.getElementById('customCookie').value = cookieMatch[1];
         found.push('Cookie');
       }
 
-      //   6.  ClearKey  DRM  Pairs   (  32 - hex  kid:key  Or  "kid": "key"  )
+      //   7.  DRM  :  Widevine  License  URL  OR  ClearKey  Pairs   (  kid:key  ,,   "kid":"key"  ,,   key_id + key  )
+      const licenseMatch = src.match(/(?:com\.widevine\.alpha|licenseUrl|license_url)\s*["']?\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i);
       const keys = [];
-      const colonRegex = /([0-9a-f]{32}:[0-9a-f]{32})/gi;
       let m;
+
+      const colonRegex = /([0-9a-f]{32}:[0-9a-f]{32})/gi;
       while ((m = colonRegex.exec(src)) !== null) {
-        if (!keys.includes(m[1].toLowerCase())) keys.push(m[1].toLowerCase());
+        const pair = m[1].toLowerCase();
+        if (!keys.includes(pair)) keys.push(pair);
       }
       const objRegex = /["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi;
       while ((m = objRegex.exec(src)) !== null) {
         const pair = `${m[1]}:${m[2]}`.toLowerCase();
         if (!keys.includes(pair)) keys.push(pair);
       }
+      const sepKid = src.match(/["']?(?:key_id|keyId|kid)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
+      const sepKey = src.match(/["']?(?:drm_key|drmKey|key)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
+      if (sepKid && sepKey) {
+        const pair = `${sepKid[1].replace(/-/g, '')}:${sepKey[1].replace(/-/g, '')}`.toLowerCase();
+        if (!keys.includes(pair)) keys.push(pair);
+      }
+
       if (keys.length) {
         document.getElementById('drmKey').value = keys.join(',');
         found.push(`${keys.length} DRM Key(s)`);
+      } else if (licenseMatch) {
+        document.getElementById('drmKey').value = licenseMatch[1];
+        found.push('License URL');
       }
 
       if (found.length) {
         document.getElementById('advancedOptions').open = true;
         updateDetectedBadge();
-        showToast('Extracted  :  ' + found.join(', '));
+        showToast('Extracted : ' + found.join(', '));
       } else {
         showToast('No  Stream  URL  or  Headers  Found  in  HTML');
       }
@@ -948,22 +981,28 @@
         return { provider: 'youtube', label: 'YouTube', videoID };
       }
 
-      // 2. JSON Channel API (e.g. sports.json)
-      if (pathname.endsWith('.json') || lower.includes('.json?')) {
+      //   2.  JSON  Channel  API   (  E.g.  -  " sports.json "  OR  Extensionless  API  When  Channel  ID  is  Set  )
+      const hasChannelId = Boolean(document.getElementById('channelId')?.value.trim());
+      const isDirectVideoExt = /\.(m3u8|mpd|mp4|webm|ogg|mov)$/i.test(pathname);
+      if (
+        pathname.endsWith('.json') ||
+        lower.includes('.json?') ||
+        (hasChannelId && !isDirectVideoExt && !lower.includes('.m3u8') && !lower.includes('.mpd'))
+      ) {
         return { provider: 'drm', label: 'JSON API (DRM)', api: unwrapped };
       }
 
-      // 3. DASH (.mpd)
+      //   3.  DASH   (  .mpd  )
       if (pathname.endsWith('.mpd') || lower.includes('.mpd')) {
         return { provider: 'drm', label: 'DASH / DRM (.mpd)', video: unwrapped, wrapperOrigin };
       }
 
-      // 4. HLS (.m3u8 — including wrapped proxy URLs)
+      //   4.  HLS   (  .m3u8  —  Including  Wrapped  Proxy  URLs  )
       if (pathname.endsWith('.m3u8') || lower.includes('.m3u8') || lower.includes('format=m3u8')) {
         return { provider: 'hls', label: 'HLS (.m3u8)', video: unwrapped, wrapperOrigin };
       }
 
-      // 5. Direct HTML5 Video
+      //   5.  Direct  HTML5  Video
       return { provider: 'html5', label: 'HTML5 Video', video: unwrapped };
     }
 
