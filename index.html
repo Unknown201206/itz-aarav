@@ -670,6 +670,14 @@
           <span>▾</span>
         </summary>
         <div class="options-grid">
+          <input
+            type="url"
+            id="pageUrlInput"
+            class="mini-input full-span"
+            placeholder="Source  Page  URL   (  Optional  —  Auto - Captures  ?id=  /  Referer  ,,   E.g.  https://site.com/jtv1?id=162  )"
+            autocomplete="off"
+            spellcheck="false"
+          />
           <textarea
             id="htmlSourceInput"
             class="mini-input full-span"
@@ -685,6 +693,15 @@
           >
             ⚡   Extract  Links  &amp;  Headers  From  HTML
           </button>
+
+          <!--   Universal  Extractor  Diagnostic  Box   (  Shows  Found  ,,   Missing  ,,   Conflicts  &  Mismatches  )   -->
+          <div id="extractorDebugWrapper" class="full-span" style="display:none; border-radius:12px; overflow:hidden; border:1px solid var(--glass-border); background:var(--output-bg);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--glass-border); font-size:0.74rem; font-weight:700; color:var(--text-primary);">
+              <span>Extractor  Diagnostic  Report</span>
+              <button type="button" class="neo-btn-secondary" style="padding:5px 10px; font-size:0.7rem;" onclick="copyExtractorReport()">COPY  REPORT</button>
+            </div>
+            <pre id="extractorDebugLog" style="margin:0; padding:10px 12px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:0.72rem; line-height:1.5; max-height:220px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; color:var(--output-text);"></pre>
+          </div>
         </div>
       </details>
 
@@ -817,10 +834,19 @@
     }
 
     /*   ==============================================================================================================================
-                   UNIVERSAL  HTML  SOURCE  AUTO - EXTRACTOR   (  API  ,,   CHANNEL  ID  ,,   M3U8 / MPD  ,,   HEADERS  ,,   DRM  )
+                   UNIVERSAL  HTML  SOURCE  AUTO - EXTRACTOR   (  ZERO  HARDCODING  +  FULL  DIAGNOSTIC  REPORT  )
          ==============================================================================================================================   */
+    function copyExtractorReport() {
+      const logText = document.getElementById('extractorDebugLog')?.textContent || '';
+      if (!logText.trim()) return;
+      navigator.clipboard.writeText(logText)
+        .then(() => showToast('Extractor  Report  Copied'))
+        .catch(() => showToast('Copy  Failed   —   Select  &  Copy  Manually'));
+    }
+
     function extractFromHtml() {
       const src = document.getElementById('htmlSourceInput').value;
+      const pageUrlRaw = (document.getElementById('pageUrlInput')?.value || '').trim();
       if (!src || !src.trim()) return showToast('Paste page HTML first');
 
       //   Reset  Previous  Auto - Extracted  Fields  So  Stale  Values  Never  Mix  Across  Pastes
@@ -830,97 +856,233 @@
       document.getElementById('customCookie').value = '';
       document.getElementById('customUa').value = '';
 
-      const found = [];
+      const uniquePush = (arr, val) => {
+        if (!val) return;
+        const clean = String(val).trim();
+        if (clean && !arr.includes(clean)) arr.push(clean);
+      };
 
-      //   1.  JSON / Channel  API  URL   (  Explicit  apiUrl  Variable  OR  .json  Endpoint  )
-      const explicitApiMatch = src.match(/(?:apiUrl|api_url|channelApi|channelsUrl|playlistUrl|jsonUrl)\s*[:=]\s*["'](https?:\/\/[^"'`<>]+)["']/i);
-      const jsonMatches = [...src.matchAll(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/gi)]
-        .map(x => x[0])
-        .filter(u => !/(?:manifest|package|tsconfig|lottie|schema)\.json/i.test(u));
-      const apiUrlFound = explicitApiMatch ? explicitApiMatch[1] : (jsonMatches[0] || '');
+      const foundSummary = [];
+      const foundLines = [];
+      const conflictLines = [];
+      const missingLines = [];
+      const mismatchLines = [];
 
-      //   2.  Direct  .m3u8  or  .mpd  Stream
-      const streamMatch = src.match(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/i);
-
-      if (apiUrlFound) {
-        rawLinkInput.value = apiUrlFound;
-        found.push('API');
-      } else if (streamMatch) {
-        rawLinkInput.value = streamMatch[0];
-        found.push('Stream');
+      //   0.  Parse  Optional  Source  Page  URL   (  Captures  ?id= / ?ch= / ?channel=  &  Origin  )
+      let pageUrlId = '';
+      let pageUrlOrigin = '';
+      const candidatePageUrl = pageUrlRaw || (
+        rawLinkInput.value.trim() &&
+        !/\.(m3u8|mpd|mp4|webm|ogg|mov|json)(\?|$)/i.test(rawLinkInput.value.trim())
+          ? rawLinkInput.value.trim()
+          : ''
+      );
+      if (candidatePageUrl) {
+        try {
+          const pu = new URL(candidatePageUrl);
+          pageUrlOrigin = pu.origin + '/';
+          pageUrlId = (
+            pu.searchParams.get('id') ||
+            pu.searchParams.get('ch') ||
+            pu.searchParams.get('channel') ||
+            pu.searchParams.get('channel_id') ||
+            pu.searchParams.get('stream') ||
+            pu.searchParams.get('c') || ''
+          ).trim();
+        } catch {}
       }
 
-      //   3.  Channel  ID   (  channelId:"STEN3"  ,,   channel_id:"..."  ,,   fetchChannel("...")  ,,   ?id=...  )
-      const channelIdMatch =
-        src.match(/(?:channelId|channel_id|channelKey|streamId|chId)\s*[:=]\s*["']([^"'\s<>]{1,64})["']/i) ||
-        src.match(/fetchChannel\s*\(\s*["']([^"'\s<>]{1,64})["']\s*\)/i) ||
-        (apiUrlFound && apiUrlFound.match(/[?&](?:id|channel|ch)=([^&#]+)/i));
-      if (channelIdMatch && channelIdMatch[1]) {
-        document.getElementById('channelId').value = decodeURIComponent(channelIdMatch[1].trim());
-        found.push(`ID: ${channelIdMatch[1].trim()}`);
+      //   1.  JSON / Channel  API  URLs   (  Matches  var API = "..."  ,,   apiUrl  ,,   fetch("...json")  ,,   Any  .json  Endpoint  )
+      const apiCandidates = [];
+      for (const m of src.matchAll(/\b(?:api|apiUrl|api_url|channelApi|channelsUrl|playlistUrl|jsonUrl|dataUrl|endpoint)\s*[:=]\s*["'`](https?:\/\/[^"'`<>\s]+)["'`]/gi)) {
+        uniquePush(apiCandidates, m[1]);
+      }
+      for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.json(?:\?[^\s"'`<>]*)?/gi)) {
+        if (!/(?:manifest|package|tsconfig|lottie|schema|font)\.json/i.test(m[0])) {
+          uniquePush(apiCandidates, m[0]);
+        }
+      }
+
+      //   2.  Direct  Stream  URLs   (  .m3u8  ,,   .mpd  ,,   or  Direct  .mp4 / .webm  Fallback  )
+      const streamCandidates = [];
+      for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:m3u8|mpd)(?:\?[^\s"'`<>]*)?/gi)) {
+        uniquePush(streamCandidates, m[0]);
+      }
+      if (!streamCandidates.length) {
+        for (const m of src.matchAll(/https?:\/\/[^\s"'`<>]+\.(?:mp4|webm)(?:\?[^\s"'`<>]*)?/gi)) {
+          uniquePush(streamCandidates, m[0]);
+        }
+      }
+
+      const selectedApi = apiCandidates[0] || '';
+      const selectedStream = streamCandidates[0] || '';
+
+      if (selectedApi) {
+        rawLinkInput.value = selectedApi;
+        foundSummary.push('API');
+        foundLines.push(`•   API  URL  :  ${selectedApi}`);
+      } else if (selectedStream) {
+        rawLinkInput.value = selectedStream;
+        foundSummary.push('Stream');
+        foundLines.push(`•   Stream  URL  :  ${selectedStream}`);
+      } else {
+        missingLines.push('•   Stream  /  API  URL  :  None  Found  in  HTML  .');
+      }
+
+      if (apiCandidates.length > 1) {
+        conflictLines.push(`•   Multiple  Different  API  URLs   (  ${apiCandidates.length}  )   —   Selected  #1   :\n  ${apiCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
+      }
+      if (streamCandidates.length > 1) {
+        conflictLines.push(`•   Multiple  Different  Stream  URLs   (  ${streamCandidates.length}  )   —   Selected  #1   :\n  ${streamCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
+      }
+      if (selectedApi && selectedStream) {
+        mismatchLines.push(`•   Both  an  API  URL  &  a  Direct  Stream  URL  Exist  in  This  HTML  .   Prioritized  API   (  ${selectedApi}  )  ;   Static  Stream  Was  :  ${selectedStream}`);
+      }
+
+      //   3.  Channel  ID   (  Page  URL  ?id=  ,,   Hardcoded  JS  Var  ,,   API  Query  Param  )
+      const htmlIdCandidates = [];
+      for (const m of src.matchAll(/\b(?:channelId|channel_id|channelKey|streamId|chId|activeChannel)\s*[:=]\s*["']([^"'\s<>]{1,64})["']/gi)) {
+        uniquePush(htmlIdCandidates, decodeURIComponent(m[1]));
+      }
+      for (const m of src.matchAll(/fetchChannel\s*\(\s*["']([^"'\s<>]{1,64})["']\s*\)/gi)) {
+        uniquePush(htmlIdCandidates, decodeURIComponent(m[1]));
+      }
+      if (selectedApi) {
+        const apiIdMatch = selectedApi.match(/[?&](?:id|channel|ch)=([^&#]+)/i);
+        if (apiIdMatch && apiIdMatch[1]) uniquePush(htmlIdCandidates, decodeURIComponent(apiIdMatch[1]));
+      }
+
+      const readsDynamicUrlId = /URLSearchParams\s*\(\s*(?:window\.)?location\.search\s*\)\.get\s*\(\s*["']([^"']+)["']\s*\)/i.exec(src);
+      const selectedChannelId = pageUrlId || htmlIdCandidates[0] || '';
+
+      if (selectedChannelId) {
+        document.getElementById('channelId').value = selectedChannelId;
+        foundSummary.push(`ID: ${selectedChannelId}`);
+        foundLines.push(`•   Channel  ID  :  ${selectedChannelId}${pageUrlId ? ' (  From  Source  Page  URL  )'  :  ' (  From  HTML  )'}`);
+      } else if (readsDynamicUrlId) {
+        missingLines.push(`•   Channel  ID  :  NOT  FOUND  in  HTML   —   This  Page  Reads  "?${readsDynamicUrlId[1]}=..."  Dynamically  From  The  Browser  URL  !!   Paste  The  Full  Page  URL  Above  or  Type  The  Channel  ID  Manually   (  Otherwise  Channel  #1   Will  Play  )  .`);
+      } else if (selectedApi) {
+        missingLines.push('•   Channel  ID  : Not  Found   (  if  This  JSON  API  Has  Multiple  Channels  ,,   Enter  The  Channel  ID  Manually  )  .');
+      }
+
+      if (pageUrlId && htmlIdCandidates.length && !htmlIdCandidates.includes(pageUrlId)) {
+        mismatchLines.push(`•   Channel  ID  Mismatch  :  Source  Page  URL  Has   "${pageUrlId}"  ,,   While  HTML  Mentions   [  ${htmlIdCandidates.join(', ')}  ]  .   Using  Page  URL  ID   "${pageUrlId}"  .`);
+      } else if (htmlIdCandidates.length > 1) {
+        conflictLines.push(`•   Multiple  Different  Channel  IDs  in  HTML   (  ${htmlIdCandidates.length}  )  :   ${htmlIdCandidates.join(', ')}   —   Selected   "${selectedChannelId}"  .`);
       }
 
       //   4.  Referer
-      const refMatch = src.match(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/i);
-      if (refMatch) {
-        document.getElementById('customReferer').value = refMatch[1];
-        found.push('Referer');
+      const refCandidates = [];
+      for (const m of src.matchAll(/["']?referer["']?\s*(?:\]\s*=|:)\s*["'](https?:\/\/[^"']+)["']/gi)) {
+        uniquePush(refCandidates, m[1]);
+      }
+      if (refCandidates.length) {
+        document.getElementById('customReferer').value = refCandidates[0];
+        foundSummary.push('Referer');
+        foundLines.push(`•   Referer  :  ${refCandidates[0]}`);
+        if (refCandidates.length > 1) {
+          conflictLines.push(`•   Multiple  Different  Referers   (  ${refCandidates.length}  )   —   Selected   #1   :\n  ${refCandidates.map((r, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${r}`).join('\n  ')}`);
+        }
+      } else {
+        missingLines.push('•   Referer  :   Not  Found  in  HTML  .');
       }
 
       //   5.  User - Agent
-      const uaMatch = src.match(/["']?(?:user-agent|userAgent|user_agent)["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/i);
-      if (uaMatch) {
-        document.getElementById('customUa').value = uaMatch[1];
-        found.push('UA');
+      const uaCandidates = [];
+      for (const m of src.matchAll(/["']?(?:user-agent|userAgent|user_agent)["']?\s*(?:\]\s*=|:)\s*["']([^"']{10,})["']/gi)) {
+        uniquePush(uaCandidates, m[1]);
+      }
+      if (uaCandidates.length) {
+        document.getElementById('customUa').value = uaCandidates[0];
+        foundSummary.push('UA');
+        foundLines.push(`•   User - Agent  :  ${uaCandidates[0]}`);
+        if (uaCandidates.length > 1) {
+          conflictLines.push(`•   Multiple  Different  User - Agents   (${uaCandidates.length})   —   Selected   #1  :\n  ${uaCandidates.map((u, i) => `${i === 0 ? '[  SELECTED  ] ' : '           '}${u}`).join('\n  ')}`);
+        }
+      } else {
+        missingLines.push('•   User - Agent  :  Not  Found  in  HTML  .');
       }
 
-      //   6.  Cookie  /  __hdnea__  Token
-      const hdneaMatch = src.match(/__hdnea__?=[^\s"'`&;]+/i);
-      const cookieMatch = src.match(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{12,})["']/i);
-      if (hdneaMatch && hdneaMatch[0].length > 15) {
-        document.getElementById('customCookie').value = hdneaMatch[0];
-        found.push('Token');
-      } else if (cookieMatch && !/^[a-zA-Z0-9_]+\s*\(/.test(cookieMatch[1])) {
-        document.getElementById('customCookie').value = cookieMatch[1];
-        found.push('Cookie');
+      //   6.  Cookie  /  __hdnea  Token
+      const cookieCandidates = [];
+      for (const m of src.matchAll(/__hdnea(?:__|_)?=[^\s"'`&;]+/gi)) {
+        if (m[0].length > 15) uniquePush(cookieCandidates, m[0]);
+      }
+      for (const m of src.matchAll(/["']?cookie["']?\s*(?:\]\s*=|:)\s*["']([^"']{12,})["']/gi)) {
+        if (!/^[a-zA-Z0-9_]+\s*\(/.test(m[1])) uniquePush(cookieCandidates, m[1]);
+      }
+      if (cookieCandidates.length) {
+        document.getElementById('customCookie').value = cookieCandidates[0];
+        foundSummary.push('Token/Cookie');
+        foundLines.push(`•   Cookie / Token  :  ${cookieCandidates[0].slice(0, 80)}${cookieCandidates[0].length > 80 ? '...' : ''}`);
+        if (cookieCandidates.length > 1) {
+          conflictLines.push(`•   Multiple  Different  Cookies / Tokens   (  ${cookieCandidates.length}  )   —   Selected   #1  .`);
+        }
+      } else if (!selectedApi) {
+        missingLines.push('•   Cookie / Token  :  Not  Found  in  HTML  .');
+      } else {
+        foundLines.push('•   Cookie / Token  :  Loaded  Dynamically  From  JSON  API  .');
       }
 
-      //   7.  DRM  :  Widevine  License  URL  OR  ClearKey  Pairs   (  kid:key  ,,   "kid":"key"  ,,   key_id + key  )
-      const licenseMatch = src.match(/(?:com\.widevine\.alpha|licenseUrl|license_url)\s*["']?\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i);
+      //   7.  DRM  :  ClearKey  Pairs  OR  Widevine  License  URL
+      const licenseCandidates = [];
+      for (const m of src.matchAll(/(?:com\.widevine\.alpha|licenseUrl|license_url)\s*["']?\s*[:=]\s*["'](https?:\/\/[^"']+)["']/gi)) {
+        uniquePush(licenseCandidates, m[1]);
+      }
       const keys = [];
-      let m;
-
-      const colonRegex = /([0-9a-f]{32}:[0-9a-f]{32})/gi;
-      while ((m = colonRegex.exec(src)) !== null) {
-        const pair = m[1].toLowerCase();
-        if (!keys.includes(pair)) keys.push(pair);
+      for (const m of src.matchAll(/([0-9a-f]{32}:[0-9a-f]{32})/gi)) {
+        uniquePush(keys, m[1].toLowerCase());
       }
-      const objRegex = /["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi;
-      while ((m = objRegex.exec(src)) !== null) {
-        const pair = `${m[1]}:${m[2]}`.toLowerCase();
-        if (!keys.includes(pair)) keys.push(pair);
+      for (const m of src.matchAll(/["']([0-9a-f]{32})["']\s*:\s*["']([0-9a-f]{32})["']/gi)) {
+        uniquePush(keys, `${m[1]}:${m[2]}`.toLowerCase());
       }
       const sepKid = src.match(/["']?(?:key_id|keyId|kid)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
       const sepKey = src.match(/["']?(?:drm_key|drmKey|key)["']?\s*[:=]\s*["']([0-9a-f-]{32,36})["']/i);
       if (sepKid && sepKey) {
-        const pair = `${sepKid[1].replace(/-/g, '')}:${sepKey[1].replace(/-/g, '')}`.toLowerCase();
-        if (!keys.includes(pair)) keys.push(pair);
+        uniquePush(keys, `${sepKid[1].replace(/-/g, '')}:${sepKey[1].replace(/-/g, '')}`.toLowerCase());
       }
 
       if (keys.length) {
         document.getElementById('drmKey').value = keys.join(',');
-        found.push(`${keys.length} DRM Key(s)`);
-      } else if (licenseMatch) {
-        document.getElementById('drmKey').value = licenseMatch[1];
-        found.push('License URL');
+        foundSummary.push(`${keys.length} DRM Key(s)`);
+        foundLines.push(`•   DRM  ClearKeys   (${keys.length}): ${keys.join(', ')}`);
+      } else if (licenseCandidates.length) {
+        document.getElementById('drmKey').value = licenseCandidates[0];
+        foundSummary.push('License URL');
+        foundLines.push(`•   DRM  License  URL  :  ${licenseCandidates[0]}`);
+        if (licenseCandidates.length > 1) {
+          conflictLines.push(`•   Multiple  Different  License  URLs   (  ${licenseCandidates.length}  )   —   Selected   #1   :\n  ${licenseCandidates.join('\n  ')}`);
+        }
+      } else if (selectedApi) {
+        foundLines.push('•   DRM  Keys  :  Will  Be  Auto - Scanned  Universally  From  JSON  API  .');
+      } else if (selectedStream && /\.mpd/i.test(selectedStream)) {
+        missingLines.push('•   DRM  Keys / License  URL  :  Not  Found   (  if  This  " .mpd "  Stream  is  Encrypted  ,,   Playback  Will  Need  ClearKey  or  Widevine  License  )   .');
       }
 
-      if (found.length) {
+      //   8.  Build  &  Display  Unified  Diagnostic  Report
+      const reportSections = [];
+      if (foundLines.length) reportSections.push('✅   FOUND  &  AUTO - FILLED   :\n' + foundLines.join('\n'));
+      if (conflictLines.length) reportSections.push('⚠️   MULTIPLE  DIFFERENT  VALUES   (  CONFLICTS  )   :\n' + conflictLines.join('\n'));
+      if (mismatchLines.length) reportSections.push('🔎   MISMATCHES  /  NOTES   :\n' + mismatchLines.join('\n'));
+      if (missingLines.length) reportSections.push('❌   NOT  FOUND  /  MISSING   :\n' + missingLines.join('\n'));
+
+      if ((refCandidates.length || uaCandidates.length || cookieCandidates.length) && !document.getElementById('useProxyToggle').checked) {
+        reportSections.push('💡   TIP  :  This  Page  Sets  Custom  Headers   (  Referer / UA / Cookie  )  .   Try  Direct  First  ;   if  You  See  HTTP  403  ,,   Tick   " Use  Edge  Proxy   (  &proxy=1  )".');
+      }
+
+      const debugWrapper = document.getElementById('extractorDebugWrapper');
+      const debugLog = document.getElementById('extractorDebugLog');
+      if (debugWrapper && debugLog) {
+        debugLog.textContent = reportSections.join('\n\n');
+        debugWrapper.style.display = 'block';
+      }
+
+      if (foundSummary.length) {
         document.getElementById('advancedOptions').open = true;
         updateDetectedBadge();
-        showToast('Extracted : ' + found.join(', '));
+        showToast('Extracted   :   ' + foundSummary.join(', '));
       } else {
-        showToast('No  Stream  URL  or  Headers  Found  in  HTML');
+        showToast('No  Stream  URL  or  Headers  Found   —   Check  Report');
       }
     }
 
@@ -1038,10 +1200,17 @@
         showToast('Clipboard access denied — paste manually');
       }
     }
+    
 
     function clearInput() {
       rawLinkInput.value = '';
+      const pageUrlEl = document.getElementById('pageUrlInput');
+      if (pageUrlEl) pageUrlEl.value = '';
       document.getElementById('htmlSourceInput').value = '';
+      const debugWrap = document.getElementById('extractorDebugWrapper');
+      if (debugWrap) debugWrap.style.display = 'none';
+      const debugLog = document.getElementById('extractorDebugLog');
+      if (debugLog) debugLog.textContent = '';
       document.getElementById('videoTitle').value = '';
       document.getElementById('channelId').value = '';
       document.getElementById('skipSeconds').value = '';
@@ -1056,6 +1225,7 @@
       updateDetectedBadge();
       rawLinkInput.focus();
     }
+    
 
     function convertLink() {
       const rawUrl = rawLinkInput.value.trim();
