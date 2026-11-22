@@ -2060,10 +2060,13 @@ if (isDrmOrDash && videoElement) {
 
 
 else if (provider === "hls" && videoElement) {
-  function buildHlsProxyUrl(target, refOverride = "") {
+  let activeProxyReferer = customReferer || wrapperReferer || "";
+  window._hlsProxyActive = Boolean(useProxy);
+
+  function buildHlsProxyUrl(target, refOverride = "", forceRef = false) {
     const p = new URLSearchParams({ url: target });
     if (customCookie) p.set("cookie", customCookie);
-    const ref = customReferer || refOverride;
+    const ref = forceRef ? refOverride : (customReferer || refOverride || activeProxyReferer);
     if (ref) p.set("referer", ref);
     if (customUserAgent) p.set("ua", customUserAgent);
     return `/api/proxy?${p.toString()}`;
@@ -2072,6 +2075,7 @@ else if (provider === "hls" && videoElement) {
   let sourceUrl = useProxy ? buildHlsProxyUrl(rawVideoUrl, wrapperReferer) : rawVideoUrl;
   let triedOuterViaVercel = useProxy;
   let triedInnerViaVercel = false;
+  let triedInnerBridgeRef = false;
   if (window.DEBUG_MODE) console.log(`[  HLS  INIT  ]   Loading  :  ${sourceUrl}`);
   
   //   Safe  Global  Fallback  To  Hide  The  Loader  if  The  Network  Fails  Early
@@ -2105,6 +2109,12 @@ else if (provider === "hls" && videoElement) {
       maxMaxBufferLength: 60,                    //   Absolute  Maximum  Limit  Even  if  RAM  is  Completely  Free
       maxBufferSize: 50 * 1000 * 1000,           //   Maximum  Buffer  Size  in  Bytes   (  50 MB  )
       xhrSetup: function (xhr, url) { 
+        //   When  Proxy  Mode  is  Active  ,,   Route  Any  External  Sub - Manifests  &  Segments  Through  /api/proxy  Too
+        if (window._hlsProxyActive && /^https?:\/\//i.test(url) && !url.startsWith(window.location.origin)) {
+          url = buildHlsProxyUrl(url, activeProxyReferer, true);
+          xhr.open('GET', url, true);
+        }
+
         const headerKey = params.get("headerKey");
         const headerVal = params.get("headerVal");
         
@@ -2148,6 +2158,7 @@ else if (provider === "hls" && videoElement) {
         //   Auto - Fallback  1  :  Retry  The  Original  Stream  Via  Vercel  Proxy   (  With  Wrapper  Referer  +  Browser  UA  )
         if (!triedOuterViaVercel && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           triedOuterViaVercel = true;
+          window._hlsProxyActive = true;
           sourceUrl = buildHlsProxyUrl(rawVideoUrl, wrapperReferer);
           if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  1  ]   Retrying  Via  Vercel  Proxy  :  ${sourceUrl}`);
           hls.loadSource(sourceUrl);
@@ -2160,8 +2171,27 @@ else if (provider === "hls" && videoElement) {
             const innerUrl = new URL(rawVideoUrl).searchParams.get("url");
             if (innerUrl && /^https?:\/\//i.test(innerUrl)) {
               triedInnerViaVercel = true;
+              window._hlsProxyActive = true;
               sourceUrl = buildHlsProxyUrl(innerUrl.trim(), wrapperReferer);
               if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  2  ]   Retrying  Inner  Stream  Via  Vercel  Proxy  :  ${sourceUrl}`);
+              hls.loadSource(sourceUrl);
+              return;
+            }
+          } catch {}
+        }
+
+        //   Auto - Fallback  3  :  Retry  Inner  Stream  Using  The  Intermediate  Bridge  Origin  As  Referer
+        if (!triedInnerBridgeRef && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          try {
+            const parsedOuter = new URL(rawVideoUrl);
+            const innerUrl = parsedOuter.searchParams.get("url");
+            const bridgeOrigin = parsedOuter.origin + "/";
+            if (innerUrl && /^https?:\/\//i.test(innerUrl) && bridgeOrigin !== activeProxyReferer) {
+              triedInnerBridgeRef = true;
+              window._hlsProxyActive = true;
+              activeProxyReferer = bridgeOrigin;
+              sourceUrl = buildHlsProxyUrl(innerUrl.trim(), bridgeOrigin, true);
+              if (window.DEBUG_MODE) console.warn(`[  HLS  FALLBACK  3  ]   Retrying  Inner  Stream  With  Bridge  Referer  :  ${sourceUrl}`);
               hls.loadSource(sourceUrl);
               return;
             }
