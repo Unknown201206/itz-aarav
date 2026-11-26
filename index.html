@@ -883,13 +883,20 @@
       return variants;
     }
 
+
     async function probeHlsManifestVariants(manifestUrl, refHeader = '', uaHeader = '', cookieHeader = '') {
       if (!manifestUrl || !/\.m3u8/i.test(manifestUrl)) return { variants: [], proxyStatus: 0 };
       let manifestBody = '';
       let proxyStatus = 0;
 
+      const fetchWithTimeout = (targetUrl) => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3500);
+        return fetch(targetUrl, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+      };
+
       try {
-        const rDirect = await fetch(manifestUrl);
+        const rDirect = await fetchWithTimeout(manifestUrl);
         if (rDirect.ok) manifestBody = await rDirect.text();
       } catch {}
 
@@ -899,7 +906,7 @@
           if (refHeader) probeParams.set('referer', refHeader);
           if (uaHeader) probeParams.set('ua', uaHeader);
           if (cookieHeader) probeParams.set('cookie', cookieHeader);
-          const rProxy = await fetch(`/api/proxy?${probeParams.toString()}`);
+          const rProxy = await fetchWithTimeout(`/api/proxy?${probeParams.toString()}`);
           proxyStatus = rProxy.status;
           if (rProxy.ok) manifestBody = await rProxy.text();
         } catch {}
@@ -910,6 +917,7 @@
         proxyStatus
       };
     }
+
 
     async function extractFromHtml() {
       const src = document.getElementById('htmlSourceInput').value;
@@ -1429,12 +1437,13 @@
       const customUa = document.getElementById('customUa').value.trim();
 
       //   Auto - Probe  Qualities  if  User  Pasted  a  Direct  .m3u8  Without  Running  HTML  Extractor
+      let probeBlocked = false;
       if (parsed.provider === 'hls' && parsed.video && (!Array.isArray(window._extractedQualities) || !window._extractedQualities.length)) {
         const quickProbe = await probeHlsManifestVariants(parsed.video, customReferer, customUa, customCookie);
         if (quickProbe.variants.length) {
           window._extractedQualities = quickProbe.variants;
         } else if (quickProbe.proxyStatus === 403) {
-          showToast('IP - Locked  CDN  :  Paste  #EXTM3U  Above  For  Quality  Buttons');
+          probeBlocked = true;
         }
       }
 
