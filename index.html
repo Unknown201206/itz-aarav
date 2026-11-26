@@ -848,17 +848,85 @@
         .catch(() => showToast('Copy  Failed   —   Select  &  Copy  Manually'));
     }
 
-    function extractFromHtml() {
+
+    window._extractedQualities = [];
+
+    function parseHlsVariantsFromText(m3u8Text, baseManifestUrl) {
+      const variants = [];
+      if (!m3u8Text || !/^\s*#EXTM3U/i.test(m3u8Text)) return variants;
+      const lines = m3u8Text.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (/^#EXT-X-STREAM-INF:/i.test(line)) {
+          const resMatch = line.match(/RESOLUTION=(\d+x\d+)/i);
+          const bwMatch = line.match(/(?:AVERAGE-BANDWIDTH|BANDWIDTH)=(\d+)/i);
+          const fpsMatch = line.match(/FRAME-RATE=([\d.]+)/i);
+          let uriLine = '';
+          for (let j = i + 1; j < lines.length; j++) {
+            const next = lines[j].trim();
+            if (next && !next.startsWith('#')) { uriLine = next; i = j; break; }
+          }
+          if (uriLine) {
+            const height = resMatch ? parseInt(resMatch[1].split('x')[1], 10) : 0;
+            const kbps = bwMatch ? Math.round(parseInt(bwMatch[1], 10) / 1000) : 0;
+            const fps = fpsMatch && parseFloat(fpsMatch[1]) > 35 ? ` ${Math.round(parseFloat(fpsMatch[1]))}fps` : '';
+            const label = `${height ? height + 'p' : 'Stream'}${fps}`;
+            let resolvedVariant = uriLine;
+            if (baseManifestUrl) {
+              try { resolvedVariant = new URL(uriLine, baseManifestUrl).href; } catch {}
+            }
+            variants.push({ label, height, kbps, url: resolvedVariant });
+          }
+        }
+      }
+      variants.sort((a, b) => (a.kbps || a.height) - (b.kbps || b.height));
+      return variants;
+    }
+
+    async function probeHlsManifestVariants(manifestUrl, refHeader = '', uaHeader = '', cookieHeader = '') {
+      if (!manifestUrl || !/\.m3u8/i.test(manifestUrl)) return { variants: [], proxyStatus: 0 };
+      let manifestBody = '';
+      let proxyStatus = 0;
+
+      try {
+        const rDirect = await fetch(manifestUrl);
+        if (rDirect.ok) manifestBody = await rDirect.text();
+      } catch {}
+
+      if (!manifestBody) {
+        try {
+          const probeParams = new URLSearchParams({ url: manifestUrl, mode: 'manifest' });
+          if (refHeader) probeParams.set('referer', refHeader);
+          if (uaHeader) probeParams.set('ua', uaHeader);
+          if (cookieHeader) probeParams.set('cookie', cookieHeader);
+          const rProxy = await fetch(`/api/proxy?${probeParams.toString()}`);
+          proxyStatus = rProxy.status;
+          if (rProxy.ok) manifestBody = await rProxy.text();
+        } catch {}
+      }
+
+      return {
+        variants: parseHlsVariantsFromText(manifestBody, manifestUrl),
+        proxyStatus
+      };
+    }
+
+    async function extractFromHtml() {
       const src = document.getElementById('htmlSourceInput').value;
       const pageUrlRaw = (document.getElementById('pageUrlInput')?.value || '').trim();
-      if (!src || !src.trim()) return showToast('Paste page HTML first');
+      const topBoxUrl = rawLinkInput.value.trim();
+      if ((!src || !src.trim()) && !pageUrlRaw && !topBoxUrl) {
+        return showToast('Paste  Page  URL  or  HTML  First');
+      }
 
       //   Reset  Previous  Auto - Extracted  Fields  So  Stale  Values  Never  Mix  Across  Pastes
+      window._extractedQualities = [];
       document.getElementById('channelId').value = '';
       document.getElementById('drmKey').value = '';
       document.getElementById('customReferer').value = '';
       document.getElementById('customCookie').value = '';
       document.getElementById('customUa').value = '';
+
 
       const uniquePush = (arr, val) => {
         if (!val) return;
@@ -944,8 +1012,28 @@
         } catch {}
       }
 
+      const baseManifestUrl = pageUrlStream || (topBoxUrl.includes('.m3u8') ? topBoxUrl : '');
+      let resolvedVariants = [];
+
       if (isRawExtM3u) {
-        mismatchLines.push('•   Raw  HLS  Manifest  Detected   (  #EXTM3U  )  :  You  Pasted  The  M3U8  Playlist  File  Instead  of  an  HTML  Page  .   Use  The  Main  .m3u8  URL  Directly  ;   if  Akamai / CDN  Blocks  Proxy  ,,   Tick   " Native / Iframe  ( 0 Quota ) ".');
+        resolvedVariants = parseHlsVariantsFromText(src, baseManifestUrl);
+        if (!resolvedVariants.length || !baseManifestUrl) {
+          mismatchLines.push('•   Raw  HLS  Manifest  Detected   (  #EXTM3U  )  :  Also  Paste  The  Master  .m3u8  URL  in   " Source  Page  URL "   Above  So  All  Quality  Buttons  Are  Attached  To  Your  Player  .');
+        }
+      } else if (baseManifestUrl && /\.m3u8/i.test(baseManifestUrl) && !src.trim()) {
+        showToast('Checking  Available  Stream  Qualities   🕊️  .......');
+        const probe = await probeHlsManifestVariants(baseManifestUrl);
+        resolvedVariants = probe.variants;
+        if (!resolvedVariants.length && probe.proxyStatus === 403) {
+          mismatchLines.push('•   IP - Locked  CDN   (  HTTP  403  on  Server  Probe  )  :  Player  Will  Auto - Play  Directly  on  Your  Device  IP   (  0  Quota  )  .   To  Add  360p / 540p / 720p  Buttons  Below  Player  ,,   Paste  The  #EXTM3U  Text  From  DevTools  Here  &  Click  Extract  .');
+        }
+      }
+
+      if (resolvedVariants.length && baseManifestUrl && /^https?:\/\//i.test(resolvedVariants[0].url)) {
+        window._extractedQualities = resolvedVariants;
+        if (!pageUrlStream) pageUrlStream = baseManifestUrl;
+        foundSummary.push(`${resolvedVariants.length} Qualities`);
+        foundLines.push(`•   Quality  Buttons  Ready   (  ${resolvedVariants.length}  )  :  Auto ,  ${resolvedVariants.map(v => v.label).join(' ,  ')}   (  3 - Per - Row  Bar  Below  Player  )  .`);
       }
 
       //   Normalize  Escaped  Slashes  &  Inline  Base64  Strings  Before  Scanning  HTML
@@ -1289,6 +1377,7 @@
     
 
     function clearInput() {
+      window._extractedQualities = [];
       rawLinkInput.value = '';
       const pageUrlEl = document.getElementById('pageUrlInput');
       if (pageUrlEl) pageUrlEl.value = '';
@@ -1314,7 +1403,7 @@
     }
     
 
-    function convertLink() {
+    async function convertLink() {
       const rawUrl = rawLinkInput.value.trim();
       if (!rawUrl) return showToast('Paste a video link first');
 
@@ -1334,6 +1423,34 @@
       } else {
         query.set('video', parsed.video);
       }
+
+      const customReferer = document.getElementById('customReferer').value.trim() || parsed.wrapperOrigin || '';
+      const customCookie = document.getElementById('customCookie').value.trim();
+      const customUa = document.getElementById('customUa').value.trim();
+
+      //   Auto - Probe  Qualities  If  User  Pasted  a  Direct  .m3u8  Without  Running  HTML  Extractor
+      if (parsed.provider === 'hls' && parsed.video && (!Array.isArray(window._extractedQualities) || !window._extractedQualities.length)) {
+        const quickProbe = await probeHlsManifestVariants(parsed.video, customReferer, customUa, customCookie);
+        if (quickProbe.variants.length) {
+          window._extractedQualities = quickProbe.variants;
+        }
+      }
+
+      //   Pack  All  Discovered  Qualities  So  video-player.html  Renders  3 - Buttons - in - a - Row  Below  Player
+      if (Array.isArray(window._extractedQualities) && window._extractedQualities.length && parsed.video) {
+        let baseDir = '';
+        try {
+          const u = new URL(parsed.video);
+          baseDir = u.origin + u.pathname.substring(0, u.pathname.lastIndexOf('/') + 1);
+        } catch {}
+
+        const packedQualities = window._extractedQualities.map(q => {
+          const compactUrl = (baseDir && q.url.startsWith(baseDir)) ? q.url.slice(baseDir.length) : q.url;
+          return `${encodeURIComponent(q.label)}:${encodeURIComponent(compactUrl)}`;
+        }).join(',');
+        query.set('qualities', packedQualities);
+      }
+
 
       const customTitle = document.getElementById('videoTitle').value.trim();
       const channelId = document.getElementById('channelId').value.trim();
