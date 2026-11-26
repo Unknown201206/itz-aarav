@@ -1014,7 +1014,50 @@
       box-shadow: var(--neo-shadow-hover);
     }
 
+    /*   =================================================================================
+                   3 - BUTTONS - IN - A - ROW  QUALITY  BAR  BELOW  PLAYER  BOX
+         =================================================================================   */
+    #nativeQualityGrid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+    .native-q-btn {
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--neo-shadow-sm), var(--glass-inner);
+      color: var(--text-primary);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, background 0.22s ease, color 0.2s ease;
+    }
+    .native-q-btn:hover {
+      transform: translateY(-2px);
+    }
+    .native-q-btn:active {
+      transform: scale(0.97);
+      box-shadow: var(--neo-shadow-in);
+    }
+    .native-q-btn.active {
+      background: linear-gradient(110deg, #111827 0%, #6d28d9 52%, #2563eb 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(167, 139, 250, 0.6) !important;
+      box-shadow: 0 8px 20px rgba(109, 40, 217, 0.35) !important;
+    }
+
   </style>
+
 
   <!--   ✅  Firebase SDKs  ( App + Auth + Firestore )   -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -1129,7 +1172,7 @@
           </circle>
         </g>
 
-        <!-- arcs (kept compact) -->
+        <!--   Arcs   (  Kept  Compact  )   -->
         <g class="arc2">
           <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,83 A23,23 0 0 1 37,60" />
           <path class="arc-line" stroke="url(#arc-gradient-player)" stroke-width="1.5" stroke-linecap="round" fill="none" d="M60,37 A23,23 0 0 1 83,60" />
@@ -1153,12 +1196,17 @@
   </div>
 </div>
 
+<!--   3 - Buttons - in - a - Row  Quality  Selector   (  Auto - Appears  Right  Below  Player  Box  )   -->
+<div id="nativeQualityBar" style="display:none;" class="w-full max-w-4xl mx-auto px-4 -mt-3 mb-7">
+  <div id="nativeQualityGrid"></div>
+</div>
 
-<!-- ---------- Progress Cards & Water Wave Circle (FIXED) ---------- -->
+
+<!-- ----------   Progress  Cards  &  Water  Wave  Circle   (  FIXED  )   ---------- -->
  <div class="card-row w-full max-w-4xl mx-auto px-4">
-    <!-- Watched Card -->
+    <!--   Watched  Card   -->
     <div class="info-card">
-      <div class="wave-circle" id="watchedWave"></div>    <!--   In Left card   -->
+      <div class="wave-circle" id="watchedWave"></div>        <!--   in  Left  card   -->
 
       <div class="info-content">
         <div class="info-desc">Timeline</div>
@@ -1171,7 +1219,7 @@
       </div>
     </div>
 
-    <!-- Remaining Card -->
+    <!--   Remaining  Card   -->
     <div class="info-card">
       <div class="wave-circle" id="remainingWave"></div>
 
@@ -2206,10 +2254,12 @@ else if (provider === "hls" && videoElement) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR: 
             hls.destroy();
+            
             //   Auto - Fallback  4  :  When  CDN  Blocks  Both  CORS  XHR  &  Proxy  IP  ,,   Switch  To  Browser's  Native  HLS / Iframe  Player   (  Uses  Device  IP  &  0  Quota  )
             if (!window._triedNativeHlsFallback && /^https?:\/\//i.test(rawVideoUrl)) {
               window._triedNativeHlsFallback = true;
               if (window.DEBUG_MODE) console.warn('[  HLS  FALLBACK  4  ]   Switching  To  Browser  Native  Player  (  Bypassing  CORS / Proxy  IP  Block  )');
+              if (typeof window.initNativeQualityBar === 'function') window.initNativeQualityBar();
               if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
                 videoElement.src = rawVideoUrl;
                 if (!(window.player instanceof Plyr)) {
@@ -2225,6 +2275,7 @@ else if (provider === "hls" && videoElement) {
               }
               return;
             }
+
             if (!(window.player instanceof Plyr)) {
               const plyrInstance = new Plyr('#player', plyrConfig);
               initAllPlayerEvents(plyrInstance);
@@ -3919,6 +3970,160 @@ window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "
   document.addEventListener('click', () => {
     liftItems.forEach(el => el.classList.remove('lift-1', 'lift-2'));
   });
+})();
+
+
+//   ====================================================================================================
+//         3 - BUTTONS - IN - A - ROW  NATIVE  QUALITY  SWITCHER   (  ZERO  VERCEL  VIDEO  QUOTA  )
+//   ====================================================================================================
+(function () {
+  const bar = document.getElementById('nativeQualityBar');
+  const grid = document.getElementById('nativeQualityGrid');
+  if (!bar || !grid || !rawVideoUrl) return;
+
+  function parseManifestVariants(text, baseUrl) {
+    const list = [];
+    if (!text || !/^\s*#EXTM3U/i.test(text)) return list;
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (/^#EXT-X-STREAM-INF:/i.test(line)) {
+        const resMatch = line.match(/RESOLUTION=(\d+x\d+)/i);
+        const bwMatch = line.match(/(?:AVERAGE-BANDWIDTH|BANDWIDTH)=(\d+)/i);
+        const fpsMatch = line.match(/FRAME-RATE=([\d.]+)/i);
+        let uriLine = '';
+        for (let j = i + 1; j < lines.length; j++) {
+          const next = lines[j].trim();
+          if (next && !next.startsWith('#')) { uriLine = next; i = j; break; }
+        }
+        if (uriLine) {
+          const height = resMatch ? parseInt(resMatch[1].split('x')[1], 10) : 0;
+          const kbps = bwMatch ? Math.round(parseInt(bwMatch[1], 10) / 1000) : 0;
+          const fps = fpsMatch && parseFloat(fpsMatch[1]) > 35 ? ` ${Math.round(parseFloat(fpsMatch[1]))}fps` : '';
+          const label = `${height ? height + 'p' : 'Stream'}${fps}`;
+          let resolved = uriLine;
+          try { resolved = new URL(uriLine, baseUrl).href; } catch {}
+          list.push({ label, height, kbps, url: resolved });
+        }
+      }
+    }
+    list.sort((a, b) => (a.kbps || a.height) - (b.kbps || b.height));
+    return list;
+  }
+
+  function switchQualitySilently(item, clickedBtn) {
+    Array.from(grid.children).forEach(b => b.classList.remove('active'));
+    clickedBtn.classList.add('active');
+    vibrate();
+
+    //   1.  If  hls.js  is  Active  ,,   Switch  Level  Seamlessly
+    if (window.hls && Array.isArray(window.hls.levels) && window.hls.levels.length > 0 && !window._triedNativeHlsFallback) {
+      if (item.isAuto) {
+        window.hls.currentLevel = -1;
+      } else {
+        const idx = window.hls.levels.findIndex(l => l.height === item.height);
+        if (idx !== -1) window.hls.currentLevel = idx;
+      }
+      showToast(`Quality  :  ${item.label}`);
+      return;
+    }
+
+    //   2.  Native  HLS  /  Fallback  4   (  Direct  Device  IP  ,,   0  KB  Vercel  Quota  )
+    if (videoElement && document.body.contains(videoElement)) {
+      const wasPaused = videoElement.paused;
+      const prevTime = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.currentTime : 0;
+      window._triedNativeHlsFallback = true;
+      videoElement.src = item.url;
+      if (prevTime > 0) {
+        videoElement.addEventListener('loadedmetadata', () => {
+          try { videoElement.currentTime = prevTime; } catch {}
+        }, { once: true });
+      }
+      if (!wasPaused) {
+        videoElement.play().catch(() => {});
+      }
+      showToast(`Switched  To  ${item.label}`);
+      return;
+    }
+
+    //   3.  Iframe  Mode  Inside  Same  Player  Box
+    const activeIframe = document.querySelector('#playerWrapper iframe');
+    if (activeIframe) {
+      activeIframe.src = item.url;
+      showToast(`Switched  To  ${item.label}`);
+    }
+  }
+
+  function renderButtons(variants) {
+    if (!variants || !variants.length) return;
+    grid.innerHTML = '';
+
+    const allOptions = [
+      { label: 'Auto', height: 0, url: rawVideoUrl, isAuto: true },
+      ...variants.map(v => ({ ...v, isAuto: false }))
+    ];
+
+    allOptions.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'native-q-btn' + (idx === 0 ? ' active' : '');
+      btn.textContent = opt.label;
+      btn.onclick = () => switchQualitySilently(opt, btn);
+      grid.appendChild(btn);
+    });
+
+    bar.style.display = 'block';
+  }
+
+  //   1.  Check  If  index.html  Already  Packed  &qualities=  Into  The  Player  URL
+  const packed = params.get('qualities');
+  if (packed) {
+    const parsedFromUrl = packed.split(',').map(entry => {
+      const sep = entry.indexOf(':');
+      if (sep === -1) return null;
+      const label = decodeURIComponent(entry.slice(0, sep));
+      const relOrAbs = decodeURIComponent(entry.slice(sep + 1));
+      let fullUrl = relOrAbs;
+      try { fullUrl = new URL(relOrAbs, rawVideoUrl).href; } catch {}
+      const hMatch = label.match(/(\d+)p/i);
+      return { label, height: hMatch ? parseInt(hMatch[1], 10) : 0, url: fullUrl };
+    }).filter(Boolean);
+
+    if (parsedFromUrl.length) {
+      renderButtons(parsedFromUrl);
+      return;
+    }
+  }
+
+  //   2.  Otherwise  ,,   When  Fallback  4  Triggers  ,,   Run  a  Silent  ~3 KB  Manifest  Probe  To  Discover  Qualities  Automatically
+  let probed = false;
+  window.initNativeQualityBar = async function () {
+    if (probed || grid.children.length > 0) return;
+    probed = true;
+
+    let text = '';
+    try {
+      const r1 = await fetch(rawVideoUrl);
+      if (r1.ok) text = await r1.text();
+    } catch {}
+
+    if (!text) {
+      try {
+        const p = new URLSearchParams({ url: rawVideoUrl, mode: 'manifest' });
+        if (customReferer) p.set('referer', customReferer);
+        if (customUserAgent) p.set('ua', customUserAgent);
+        if (customCookie) p.set('cookie', customCookie);
+        const r2 = await fetch(`/api/proxy?${p.toString()}`);
+        if (r2.ok) text = await r2.text();
+      } catch {}
+    }
+
+    const found = parseManifestVariants(text, rawVideoUrl);
+    if (found.length) {
+      renderButtons(found);
+      if (window.DEBUG_MODE) console.log(`[  QUALITY  BAR  ]   Added   ${found.length}   Quality  Buttons  Below  Player  .`);
+    }
+  };
 })();
 
   
