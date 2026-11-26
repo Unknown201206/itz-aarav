@@ -1428,11 +1428,13 @@
       const customCookie = document.getElementById('customCookie').value.trim();
       const customUa = document.getElementById('customUa').value.trim();
 
-      //   Auto - Probe  Qualities  If  User  Pasted  a  Direct  .m3u8  Without  Running  HTML  Extractor
+      //   Auto - Probe  Qualities  if  User  Pasted  a  Direct  .m3u8  Without  Running  HTML  Extractor
       if (parsed.provider === 'hls' && parsed.video && (!Array.isArray(window._extractedQualities) || !window._extractedQualities.length)) {
         const quickProbe = await probeHlsManifestVariants(parsed.video, customReferer, customUa, customCookie);
         if (quickProbe.variants.length) {
           window._extractedQualities = quickProbe.variants;
+        } else if (quickProbe.proxyStatus === 403) {
+          showToast('IP - Locked  CDN  :  Paste  #EXTM3U  Above  For  Quality  Buttons');
         }
       }
 
