@@ -1485,7 +1485,11 @@
       document.getElementById('finalUrl').value = finalUrl;
       document.getElementById('outputProviderBadge').textContent = parsed.label.toUpperCase();
       document.getElementById('outputSection').classList.add('visible');
-      showToast('Converted for ' + parsed.label);
+      showToast(
+        probeBlocked
+          ? 'IP - Locked  CDN  :  Paste  #EXTM3U  Above  For  Quality  Buttons'
+          : 'Converted for ' + parsed.label
+      );
     }
 
     async function copyLink() {
