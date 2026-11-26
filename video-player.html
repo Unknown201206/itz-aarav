@@ -91,6 +91,8 @@
       background: black;
       display: block;
       touch-action: manipulation;
+      transform: translateZ(0);
+      will-change: transform;
     }
 
     /*   ✅ Force Plyr wrapper itself to always stay 16:9   */
@@ -2153,8 +2155,32 @@ else if (provider === "hls" && videoElement) {
       };
   }
 
-  if (Hls.isSupported()) {
-    const hls = new Hls({ 
+  const preferDirectNativeHls =
+    params.has('qualities') &&
+    !useProxy &&
+    !customReferer &&
+    !customCookie &&
+    !customUserAgent &&
+    videoElement.canPlayType('application/vnd.apple.mpegurl');
+
+  if (preferDirectNativeHls) {
+    window._triedNativeHlsFallback = true;
+    if (window.DEBUG_MODE) console.log('[  HLS  NATIVE  ]   Starting  Direct  Native  HLS  With  Quality  Bar  (  0  Quota  )');
+    videoElement.src = rawVideoUrl;
+    const plyrInstance = new Plyr('#player', plyrConfig);
+    initAllPlayerEvents(plyrInstance);
+    videoElement.muted = false;
+    videoElement.play().catch(() => {
+      videoElement.muted = true;
+      videoElement.play().then(() => {
+        showToast("Tap  Anywhere  To  Unmute   🪄  .....");
+        const unmuteHandler = () => { videoElement.muted = false; };
+        document.addEventListener('touchstart', unmuteHandler, { once: true });
+        document.addEventListener('click', unmuteHandler, { once: true });
+      }).catch(() => {});
+    });
+  } else if (Hls.isSupported()) {
+    const hls = new Hls({
       debug: false,
       maxBufferLength: 30,                       //   Max  Seconds  of  Video  To  Keep  in  Memory  Ahead  of  Playback
       maxMaxBufferLength: 60,                    //   Absolute  Maximum  Limit  Even  if  RAM  is  Completely  Free
@@ -3266,15 +3292,16 @@ function startSessionTimer() {
   if (sessionTimer) return;
   lastTick = Date.now();
   sessionTimer = setInterval(() => {
-    if (window._isThemeTransitioning) return;
+    if (window._isThemeTransitioning || document.hidden) return;
     const now = Date.now();
     //   Guard  Against  Negative  Diffs
     const delta = Math.max(0, now - lastTick);
     watchedMilliseconds += delta;
     lastTick = now;
     sessionCurrentTime.textContent = formatSessionTime(watchedMilliseconds);
-  }, 50);        //   Update  Every  50ms   (  Same  as  Before  )
+  }, 100);
 }
+
 
 function stopSessionTimer() {
   if (!sessionTimer) return;
@@ -3485,11 +3512,12 @@ window.startSessionTracking = function() {
     //   ✅  NEW  HLS  FIX  :  Ensure  Custom  m3u8  Live  Streams   (  Including  Native  HLS  Fallback  )   Are  Tracked  Properly  !!
     if (
         dur === Infinity ||
-        (window._triedNativeHlsFallback && cur > 0 && (!dur || !isFinite(dur))) ||
+        (window._triedNativeHlsFallback && (!dur || !isFinite(dur))) ||
         (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)
     ) {
         isYtLive = true;
     }
+
 
     if (window.shakaPlayer && window.shakaPlayer.isLive()) {
         isYtLive = true;
@@ -3684,7 +3712,7 @@ window.startSessionTracking = function() {
             isLive = true;
             liveEdgeTime = window.hls.liveSyncPosition || dur;
         }
-    } else if (dur === Infinity || (window._triedNativeHlsFallback && cur > 0 && (!dur || !isFinite(dur)))) {
+    } else if (dur === Infinity || (window._triedNativeHlsFallback && (!dur || !isFinite(dur)))) {
         isLive = true;
     }
 
@@ -3906,16 +3934,18 @@ function createWaveCircle(
     return d;
   }
 
-  //   ======   Animation  Loop   ======
-  function animate() {
-    if (!window._isThemeTransitioning) {
+  //   ======   Animation  Loop   (  Capped  At  ~25fps  To  Keep  Video  Playback  Butter - Smooth  )   ======
+  let lastWaveTick = 0;
+  function animate(now) {
+    if (!window._isThemeTransitioning && !document.hidden && (now - lastWaveTick) >= 40) {
+      lastWaveTick = now;
       //   Smoothly  Interpolate  Water  Level
-      smoothProgress += (targetProgress - smoothProgress) * 0.05;
+      smoothProgress += (targetProgress - smoothProgress) * 0.08;
       const levelY = SIZE - smoothProgress * SIZE;
 
       //   Advance  Wave  Phases
-      phase1 -= 0.05;
-      phase2 -= 0.07;
+      phase1 -= 0.08;
+      phase2 -= 0.11;
 
       //   Update  Wave  Paths
       wave1.setAttribute("d", buildWave(SIZE, 3, 2, phase1, levelY));
