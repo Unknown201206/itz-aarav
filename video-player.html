@@ -3431,10 +3431,15 @@ window.startSessionTracking = function() {
         }
     }
 
-    //   ✅  NEW  HLS  FIX  :  Ensure  Custom  m3u8  Live  Streams  Are  Also  Tracked  Properly  !!
-    if (dur === Infinity || (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)) {
+    //   ✅  NEW  HLS  FIX  :  Ensure  Custom  m3u8  Live  Streams   (  Including  Native  HLS  Fallback  )   Are  Tracked  Properly  !!
+    if (
+        dur === Infinity ||
+        (window._triedNativeHlsFallback && cur > 0 && (!dur || !isFinite(dur))) ||
+        (window.hls && window.hls.levels && window.hls.levels.length > 0 && window.hls.levels[window.hls.currentLevel === -1 ? 0 : window.hls.currentLevel]?.details?.live)
+    ) {
         isYtLive = true;
     }
+
     if (window.shakaPlayer && window.shakaPlayer.isLive()) {
         isYtLive = true;
     }
@@ -3628,7 +3633,7 @@ window.startSessionTracking = function() {
             isLive = true;
             liveEdgeTime = window.hls.liveSyncPosition || dur;
         }
-    } else if (dur === Infinity) {
+    } else if (dur === Infinity || (window._triedNativeHlsFallback && cur > 0 && (!dur || !isFinite(dur)))) {
         isLive = true;
     }
 
