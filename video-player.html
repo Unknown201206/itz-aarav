@@ -157,6 +157,9 @@
       transition: opacity 180ms ease, visibility 180ms;
       pointer-events: none;
     }
+    #playerLoader.soft-buffer {
+      background: rgba(0, 0, 0, 0.48);
+    }
 
     /* visible state */
     #playerLoader.show {
@@ -1605,6 +1608,8 @@ function initAllPlayerEvents(plyrInstance) {
 
   const myLoader = document.getElementById('playerLoader');
   let loaderFailSafeTimer = null;
+  let waitingDebounceTimer = null;
+  let hasPlayedOnce = false;
 
   function showCustomLoader() {
     if (!myLoader || window._isUserScrubbing) return;
@@ -1613,21 +1618,29 @@ function initAllPlayerEvents(plyrInstance) {
       hideCustomLoader();
       return;
     }
+    if (hasPlayedOnce) myLoader.classList.add('soft-buffer');
     myLoader.classList.add('show');
-    //   Safety  Net  :  if  a  Seek  On  a  Paused / Ended  Video  Never  Emits  Seeked / Playing  ,,   Auto - Clear  After  3.5s
+    //   Safety  Net  :  if  a  Seek  On  a  Paused / Ended  Video  Never  Emits  Seeked / Playing  ,,   Auto - Clear  After  2.5s
     clearTimeout(loaderFailSafeTimer);
     loaderFailSafeTimer = setTimeout(() => {
-      if (player.paused || player.ended) hideCustomLoader();
-    }, 3500);
+      hideCustomLoader();
+    }, 2500);
   }
 
   function hideCustomLoader() {
+    clearTimeout(waitingDebounceTimer);
     clearTimeout(loaderFailSafeTimer);
     if (myLoader) myLoader.classList.remove('show');
   }
 
   player.on('loadstart', showCustomLoader);
-  player.on('waiting', showCustomLoader);
+  player.on('waiting', () => {
+    //   Ignore  Brief  < 450ms  Native  HLS  Segment  Transitions  So  Screen  Never  Flashes  Black
+    clearTimeout(waitingDebounceTimer);
+    waitingDebounceTimer = setTimeout(() => {
+      if (!player.paused && !player.ended) showCustomLoader();
+    }, 450);
+  });
   player.on('seeking', () => {
     //   Only  Show  Loader  On  Seek  if  Not  Already  At  The  Very  End
     if (!player.ended && !(isFinite(player.duration) && player.duration > 0 && player.currentTime >= player.duration - 0.5)) {
@@ -1637,14 +1650,24 @@ function initAllPlayerEvents(plyrInstance) {
     }
   });
   
-  //   👇🏻  THE  FIX  :  Hide  The  Loader  On  Every  Terminal / Ready  State
+  //   👇🏻  THE  FIX  :  Hide  The  Loader  On  Every  Terminal / Ready / Frame - Advance  State
   player.on('ready', hideCustomLoader);
   player.on('canplay', hideCustomLoader);
-  player.on('playing', hideCustomLoader);
+  player.on('playing', () => {
+    hasPlayedOnce = true;
+    hideCustomLoader();
+  });
+  player.on('timeupdate', () => {
+    if (myLoader && myLoader.classList.contains('show')) {
+      hasPlayedOnce = true;
+      hideCustomLoader();
+    }
+  });
   player.on('seeked', hideCustomLoader);
   player.on('ended', hideCustomLoader);
   player.on('error', hideCustomLoader);
   player.on('loadeddata', hideCustomLoader);
+
 
   //   👇🏻  YOUTUBE  LOADER  FIX  :  Handle  ALL  YouTube  States   (  Including  0 = Ended  ,,   -1  =  Unstarted  ,,   5  =  Cued  )
   player.on('statechange', (event) => {
@@ -2165,8 +2188,9 @@ else if (provider === "hls" && videoElement) {
 
   if (preferDirectNativeHls) {
     window._triedNativeHlsFallback = true;
-    if (window.DEBUG_MODE) console.log('[  HLS  NATIVE  ]   Starting  Direct  Native  HLS  With  Quality  Bar  (  0  Quota  )');
+    videoElement.preload = 'auto';
     videoElement.src = rawVideoUrl;
+    if (window.DEBUG_MODE) console.log(`[  NATIVE  HLS  ]   Direct  Mobile  IP  Playback  (  0  Vercel  Quota  )  :  ${rawVideoUrl.substring(0, 85)}`);
     const plyrInstance = new Plyr('#player', plyrConfig);
     initAllPlayerEvents(plyrInstance);
     videoElement.muted = false;
@@ -2180,7 +2204,7 @@ else if (provider === "hls" && videoElement) {
       }).catch(() => {});
     });
   } else if (Hls.isSupported()) {
-    const hls = new Hls({
+    const hls = new Hls({ 
       debug: false,
       maxBufferLength: 30,                       //   Max  Seconds  of  Video  To  Keep  in  Memory  Ahead  of  Playback
       maxMaxBufferLength: 60,                    //   Absolute  Maximum  Limit  Even  if  RAM  is  Completely  Free
@@ -2287,6 +2311,7 @@ else if (provider === "hls" && videoElement) {
               if (window.DEBUG_MODE) console.warn('[  HLS  FALLBACK  4  ]   Switching  To  Browser  Native  Player  (  Bypassing  CORS / Proxy  IP  Block  )');
               if (typeof window.initNativeQualityBar === 'function') window.initNativeQualityBar();
               if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElement.preload = 'auto';
                 videoElement.src = rawVideoUrl;
                 if (!(window.player instanceof Plyr)) {
                   const plyrInstance = new Plyr('#player', plyrConfig);
@@ -3797,19 +3822,38 @@ window.startSessionTracking = function() {
     window.player.on('ended', updateProgressFromPlayer);
     setTimeout(updateProgressFromPlayer, 80);
 
-    //   👇🏻  PROGRESSIVE  DOWNLOAD  TRACKER  :  Only  Runs  When  " &debug=1 "  is  Active
+    //   👇🏻  PROGRESSIVE  &  NATIVE  LIVE  BUFFER  TRACKER  :  Only  Runs  When  " &debug=1 "  is  Active
     if (window.DEBUG_MODE) {
+      const m = window.player?.media;
+      if (m && !m._nativeDebugAttached) {
+        m._nativeDebugAttached = true;
+        ['waiting', 'stalled', 'playing', 'canplay', 'error'].forEach(evName => {
+          m.addEventListener(evName, () => {
+            const errInfo = (evName === 'error' && m.error) ? ` | Code: ${m.error.code} (${m.error.message || ''})` : '';
+            console.log(`[  NATIVE  EVENT  ]   ${evName.toUpperCase()}   |   Pos: ${m.currentTime.toFixed(1)}s   |   ReadyState: ${m.readyState}${errInfo}`);
+          });
+        });
+      }
+
       setInterval(() => {
           if (!window.player || !window.player.media) return;
           const vid = window.player.media;
-          if (vid.buffered.length > 0 && Number.isFinite(vid.duration) && vid.duration > 0) {
-              const bufferedSeconds = vid.buffered.end(vid.buffered.length - 1);
-              const percent = ((bufferedSeconds / vid.duration) * 100).toFixed(1);
-              if (percent < 99.9) {
-                  console.log(`[  NETWORK  ]   Buffered  :  ${percent}%  (${Math.floor(bufferedSeconds)}s  of  ${Math.floor(vid.duration)}s)`);
+          const isUsingVercel = (vid.currentSrc || '').includes('/api/proxy');
+          const quotaTag = isUsingVercel ? 'Vercel Proxy' : 'Direct CDN (0 Vercel Quota)';
+
+          if (vid.buffered.length > 0) {
+              const bufEnd = vid.buffered.end(vid.buffered.length - 1);
+              const ahead = Math.max(0, bufEnd - vid.currentTime).toFixed(1);
+              if (Number.isFinite(vid.duration) && vid.duration > 0) {
+                  const percent = ((bufEnd / vid.duration) * 100).toFixed(1);
+                  if (percent < 99.9) {
+                      console.log(`[  NETWORK  ]   Buffered  :  ${percent}%  (${Math.floor(bufEnd)}s of ${Math.floor(vid.duration)}s)  |  ${quotaTag}`);
+                  }
+              } else {
+                  console.log(`[  NATIVE  BUFFER  ]   Ahead  :  ${ahead}s   |   Pos  :  ${vid.currentTime.toFixed(1)}s   |   ReadyState  :  ${vid.readyState}   |   ${quotaTag}`);
               }
           }
-      }, 5000);
+      }, 4000);
     }
 
     
@@ -4063,7 +4107,9 @@ window.remainingWave = createWaveCircle("remainingWave", "#6faeff", "#1d5ee9", "
       const wasPaused = videoElement.paused;
       const prevTime = isFinite(videoElement.duration) && videoElement.duration > 0 ? videoElement.currentTime : 0;
       window._triedNativeHlsFallback = true;
+      videoElement.preload = 'auto';
       videoElement.src = item.url;
+      if (window.DEBUG_MODE) console.log(`[  NATIVE  QUALITY  ]   Switched  To  ${item.label}  :  ${item.url.substring(0, 85)}`);
       if (prevTime > 0) {
         videoElement.addEventListener('loadedmetadata', () => {
           try { videoElement.currentTime = prevTime; } catch {}
