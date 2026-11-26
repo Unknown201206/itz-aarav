@@ -764,7 +764,11 @@
             <input type="checkbox" id="noSkipToggle" />
             <span>Disable  Auto - Skip</span>
           </label>
-          <label class="checkbox-pill full-span">
+          <label class="checkbox-pill">
+            <input type="checkbox" id="iframeModeToggle" />
+            <span>Native  /  Iframe  (  0  Quota  )</span>
+          </label>
+          <label class="checkbox-pill">
             <input type="checkbox" id="debugToggle" />
             <span>Enable  Debug  Console  (  &amp;debug=1  )</span>
           </label>
@@ -881,11 +885,14 @@
       const missingLines = [];
       const mismatchLines = [];
 
-      //   0.  Parse  Optional  Source  Page  URL   (  Captures  ?url= / ?src= / ?file= / ?id= / ?ch=  &  Origin  )
+      //   0.  Parse  Optional  Source  Page  URL   (  Captures  Direct  Stream  ,,   ?url= / ?id=  &  Origin  )
       let pageUrlId = '';
       let pageUrlOrigin = '';
       let pageUrlStream = '';
       let pageUrlApi = '';
+      let pageUrlIsDirectMedia = false;
+      const isRawExtM3u = /^\s*#EXTM3U/i.test(src);
+
       const candidatePageUrl = pageUrlRaw || (
         rawLinkInput.value.trim() &&
         !/\.(m3u8|mpd|mp4|webm|ogg|mov|json)(\?|$)/i.test(rawLinkInput.value.trim())
@@ -895,14 +902,28 @@
       if (candidatePageUrl) {
         try {
           const pu = new URL(candidatePageUrl);
-          pageUrlOrigin = pu.origin + '/';
-          pageUrlId = (
-            pu.searchParams.get('id') ||
-            pu.searchParams.get('ch') ||
-            pu.searchParams.get('channel') ||
-            pu.searchParams.get('channel_id') ||
-            pu.searchParams.get('c') || ''
-          ).trim();
+          const pLower = pu.pathname.toLowerCase();
+
+          //   If  User  Pasted  a  Direct  Stream  or  .json  Link  into  Source  Page  URL  ,,   Capture  it  Directly
+          if (/\.json$/i.test(pLower) || pu.href.toLowerCase().includes('.json?')) {
+            pageUrlApi = pu.href;
+            pageUrlIsDirectMedia = true;
+          } else if (/\.(m3u8|mpd|mp4|webm|ogg|mov)$/i.test(pLower) || pu.href.toLowerCase().includes('.m3u8') || pu.href.toLowerCase().includes('.mpd')) {
+            pageUrlStream = pu.href;
+            pageUrlIsDirectMedia = true;
+          } else {
+            pageUrlOrigin = pu.origin + '/';
+          }
+
+          if (!pageUrlIsDirectMedia) {
+            pageUrlId = (
+              pu.searchParams.get('id') ||
+              pu.searchParams.get('ch') ||
+              pu.searchParams.get('channel') ||
+              pu.searchParams.get('channel_id') ||
+              pu.searchParams.get('c') || ''
+            ).trim();
+          }
 
           const rawParamApi = pu.searchParams.get('api') || pu.searchParams.get('json') || '';
           const decodedApi = decodeMaybeBase64Url(rawParamApi);
@@ -921,6 +942,10 @@
             }
           }
         } catch {}
+      }
+
+      if (isRawExtM3u) {
+        mismatchLines.push('•   Raw  HLS  Manifest  Detected   (  #EXTM3U  )  :  You  Pasted  The  M3U8  Playlist  File  Instead  of  an  HTML  Page  .   Use  The  Main  .m3u8  URL  Directly  ;   if  Akamai / CDN  Blocks  Proxy  ,,   Tick   " Native / Iframe  ( 0 Quota ) ".');
       }
 
       //   Normalize  Escaped  Slashes  &  Inline  Base64  Strings  Before  Scanning  HTML
@@ -1281,6 +1306,7 @@
       document.getElementById('customUa').value = '';
       document.getElementById('useProxyToggle').checked = false;
       document.getElementById('noSkipToggle').checked = false;
+      document.getElementById('iframeModeToggle').checked = false;
       document.getElementById('debugToggle').checked = false;
       document.getElementById('outputSection').classList.remove('visible');
       updateDetectedBadge();
@@ -1295,8 +1321,11 @@
       const parsed = detectLinkType(rawUrl);
       if (parsed.error) return showToast(parsed.error);
 
+      const useIframeMode = document.getElementById('iframeModeToggle')?.checked;
+      const finalProvider = (useIframeMode && parsed.provider !== 'youtube') ? 'iframe' : parsed.provider;
+
       const query = new URLSearchParams();
-      query.set('provider', parsed.provider);
+      query.set('provider', finalProvider);
 
       if (parsed.provider === 'youtube') {
         query.set('videoID', parsed.videoID);
