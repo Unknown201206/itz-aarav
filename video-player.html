@@ -1461,6 +1461,8 @@ if ((!provider || provider === "html5") && rawVideoUrl) {
 
 //   Main  Player  Load  &  Gesture  Zone  Injection   (  Using  insertAdjacentHTML  So  #playerLoader  is  Not  Destroyed  )
 if (provider === "iframe" && /^https?:\/\//i.test(rawVideoUrl)) {
+  const isDirectStreamIframe = /\.(m3u8|mpd|mp4|webm|ogg|mov)(\?|$)/i.test(rawVideoUrl);
+  const sandboxAttr = isDirectStreamIframe ? '' : 'sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video w-full h-full">
       <iframe
@@ -1468,9 +1470,10 @@ if (provider === "iframe" && /^https?:\/\//i.test(rawVideoUrl)) {
         class="w-full h-full border-0"
         allowfullscreen
         allow="encrypted-media; fullscreen; autoplay"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        ${sandboxAttr}
       ></iframe>
     </div>`);
+
 } else if (provider === "youtube" && safeVideoID) {
   wrapper.insertAdjacentHTML('beforeend', `
     <div class="relative aspect-video rounded w-full h-full">
@@ -2200,21 +2203,42 @@ else if (provider === "hls" && videoElement) {
 
         forceHideLoader();         //   Safely  Hide  Loader  Using  The  Global  Function
         
-        //   Ensure  UI  Builds  Even  On  Failure  So  it  Doesn't  Spin  Forever
-        if (!(window.player instanceof Plyr)) {
-          const plyrInstance = new Plyr('#player', plyrConfig);
-          initAllPlayerEvents(plyrInstance);
-        }
-        
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR: 
-            hls.destroy(); 
+            hls.destroy();
+            //   Auto - Fallback  4  :  When  CDN  Blocks  Both  CORS  XHR  &  Proxy  IP  ,,   Switch  To  Browser's  Native  HLS / Iframe  Player   (  Uses  Device  IP  &  0  Quota  )
+            if (!window._triedNativeHlsFallback && /^https?:\/\//i.test(rawVideoUrl)) {
+              window._triedNativeHlsFallback = true;
+              if (window.DEBUG_MODE) console.warn('[  HLS  FALLBACK  4  ]   Switching  To  Browser  Native  Player  (  Bypassing  CORS / Proxy  IP  Block  )');
+              if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElement.src = rawVideoUrl;
+                if (!(window.player instanceof Plyr)) {
+                  const plyrInstance = new Plyr('#player', plyrConfig);
+                  initAllPlayerEvents(plyrInstance);
+                }
+                videoElement.play().catch(() => {});
+              } else {
+                const playerBox = videoElement.closest('.relative');
+                if (playerBox) {
+                  playerBox.innerHTML = `<iframe src="${escapeHTML(rawVideoUrl)}" class="w-full h-full border-0" allowfullscreen allow="encrypted-media; fullscreen; autoplay"></iframe>`;
+                }
+              }
+              return;
+            }
+            if (!(window.player instanceof Plyr)) {
+              const plyrInstance = new Plyr('#player', plyrConfig);
+              initAllPlayerEvents(plyrInstance);
+            }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR: 
             hls.recoverMediaError(); 
             break;
           default: 
             hls.destroy(); 
+            if (!(window.player instanceof Plyr)) {
+              const plyrInstance = new Plyr('#player', plyrConfig);
+              initAllPlayerEvents(plyrInstance);
+            }
             break;
         }
       }
